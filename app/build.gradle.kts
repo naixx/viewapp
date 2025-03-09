@@ -55,6 +55,11 @@ android {
             "META-INF/LICENSE-notice.md",
         )
     }
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
+    }
 }
 
 dependencies {
@@ -94,23 +99,29 @@ dependencies {
     implementation(libs.ktorfit.converters.flow)
     implementation(libs.ktor.client.cio)
 
-    testImplementation(libs.junit)
-//    androidTestImplementation(libs.androidx.junit)
+
+    testImplementation(libs.robolectric)
+    testImplementation("androidx.test:core-ktx:1.6.1")
+    testImplementation(libs.androidx.test.junit)
+    testImplementation(libs.koin.test)
+    testImplementation(libs.mockk)
+    testImplementation(libs.kotlinx.coroutines.test)
+
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.ui.test.junit4)
     androidTestImplementation(libs.koin.test)
     androidTestImplementation(libs.slf4j.simple)
     androidTestImplementation(libs.mockk.android)
+
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 }
 
 tasks.withType<Test> {
-    // Make all properties from secrets.properties available to tests
     project.properties.forEach { (key, value) ->
         if (key.startsWith("args.") && value != null) {
-            android.defaultConfig.testInstrumentationRunnerArguments[key.replace("args.", "")] = value.toString()
+            systemProperty(key.replace("args.", ""), value.toString())
         }
     }
 }

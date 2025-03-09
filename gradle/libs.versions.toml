@@ -40,6 +40,7 @@ napier = "2.7.1"
 pagingCompose = "3.3.2"
 qrKit = "2.0.0"
 reorderable = "2.3.3"
+robolectric = "4.12.2"
 slf4jSimple = "2.0.16"
 sonner = "0.3.8"
 startupRuntime = "1.2.0"
@@ -118,6 +119,7 @@ plugin-kotpreferences = { module = "com.github.MFlisar.ComposeDebugDrawer:plugin
 plugin-lumberjack = { module = "com.github.MFlisar.ComposeDebugDrawer:plugin-lumberjack", version.ref = "composedebugdrawer" }
 qr-kit = { module = "network.chaintech:qr-kit", version.ref = "qrKit" }
 reorderable = { module = "sh.calvin.reorderable:reorderable", version.ref = "reorderable" }
+robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 screen-bool = { module = "com.github.MFlisar.ComposePreferences:screen-bool", version.ref = "composepreferences" }
 screen-button = { module = "com.github.MFlisar.ComposePreferences:screen-button", version.ref = "composepreferences" }
 slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4jSimple" }

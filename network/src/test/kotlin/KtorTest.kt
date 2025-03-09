@@ -19,9 +19,9 @@ import kotlin.time.measureTime
 
 val testModule = module {
     single<StorageProvider> {
-        val mock = mockk<StorageProvider>(relaxed = true)
-        every { mock.session() } returns System.getProperty("session")
-        mock
+        mockk<StorageProvider>(relaxed = true).apply {
+            every { session() } returns System.getProperty("session")
+        }
     }
 }
 

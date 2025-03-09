@@ -43,7 +43,6 @@ dependencies {
 
     testImplementation(libs.jetbrains.kotlin.test.junit)
     testImplementation(libs.mockk)
-//    testImplementation(libs.koin.test.junit4)
     testImplementation(libs.koin.test)
     testImplementation(libs.slf4j.simple)
     testImplementation(libs.kotlinx.coroutines.test)

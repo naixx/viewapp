@@ -1,52 +1,43 @@
 package com.github.naixx.viewapp
 
+import android.app.Application
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
-import com.github.naixx.viewapp.network.*
+import com.github.naixx.viewapp.network.generateLocalServer
 import github.naixx.network.*
 import io.ktor.client.HttpClient
 import io.mockk.*
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.*
-import org.junit.Assert.assertEquals
 import org.junit.runner.RunWith
 import org.koin.core.component.get
 import org.koin.core.context.*
-import org.koin.core.parameter.parametersOf
 import org.koin.dsl.module
-import org.koin.test.KoinTest
+import org.koin.test.*
+import org.robolectric.annotation.Config
 import kotlin.test.assertNotNull
 import kotlin.time.measureTime
 
 val testModule = module {
     single<StorageProvider> {
-        val mock = mockk<StorageProvider>(relaxed = true)
-        val session = InstrumentationRegistry.getArguments().getString("session")
-        every { mock.session() } returns session
-        mock
+        mockk<StorageProvider>(relaxed = true).apply {
+            every { session() } returns System.getProperty("session")
+        }
     }
 }
 
 @RunWith(AndroidJUnit4::class)
-class ExampleInstrumentedTest : KoinTest {
+@Config(sdk = [30])
+class ExampleRobolectricTest : KoinTest {
 
-    lateinit var api: ViewApi
-
-    @Test
-    fun useAppContext() {
-        // Context of the app under test.
-        val appContext = InstrumentationRegistry.getInstrumentation().targetContext
-        assertEquals("com.github.naixx.viewapp", appContext.packageName)
-    }
-
+    // Dependency injection
     @Before
     fun setup() {
         stopKoin()
         startKoin {
             modules(listOf(networkModule, testModule))
         }
-        api = get<ViewApi>(parameters = { parametersOf(URL) })
     }
 
     @After
@@ -56,14 +47,15 @@ class ExampleInstrumentedTest : KoinTest {
 
     @Test
     fun testSessionExists() {
-        val session = get<StorageProvider>().session()
+        val storageProvider: StorageProvider by inject()
+        val session = storageProvider.session()
         assertNotNull(session)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun findFirstAvailableServer() = runTest {
-        val appContext = InstrumentationRegistry.getInstrumentation().targetContext
+        val appContext = ApplicationProvider.getApplicationContext<Application>()
         val result: AddressResponse?
         val client = get<HttpClient>()
         val dur = measureTime {
