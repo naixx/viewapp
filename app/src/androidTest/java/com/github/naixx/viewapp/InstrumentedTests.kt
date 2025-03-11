@@ -45,7 +45,7 @@ class ExampleInstrumentedTest : KoinTest {
         startKoin {
             modules(listOf(networkModule, testModule))
         }
-        api = get<ViewApi>(parameters = { parametersOf(URL) })
+        api = get<ViewApi>(parameters = { parametersOf(WIFI_URL) })
     }
 
     @After
@@ -67,7 +67,7 @@ class ExampleInstrumentedTest : KoinTest {
         val client = get<HttpClient>()
         val dur = measureTime {
             val urls = generateLocalServer(appContext)
-            result = client.scanUrls(urls + listOf(REMOTE_URL))
+            result = client.scanHosts(urls + listOf(REMOTE_URL))
         }
 
         println(dur)

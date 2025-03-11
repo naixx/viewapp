@@ -1,5 +1,6 @@
 import github.naixx.network.*
 import github.naixx.network.AddressResponse.Address
+import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.sendSerialized
 import io.ktor.websocket.*
 import io.mockk.every
@@ -102,13 +103,13 @@ class KtorTest : KoinTest {
     fun `find first available server with api`() = runTest {
         val base = "http://192.168.31."
         val result: AddressResponse?
-        val client = get<io.ktor.client.HttpClient>()
+        val client = get<HttpClient>()
         val dur = measureTime {
             result = withContext(Dispatchers.IO) {
                 withTimeoutOrNull(60000) {
-                    val urls = (1..254).map { "$base$it/socket/address" }.toMutableList()
-                    urls.add(128, "${REMOTE_URL}socket/address")
-                    client.scanUrls(urls)
+                    val urls = (1..254).map { "$base$it/" }.toMutableList()
+                    urls.add(128, REMOTE_URL)
+                    client.scanHosts(urls)
                 }
             }
         }

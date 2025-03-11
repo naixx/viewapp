@@ -52,7 +52,6 @@ class ExampleRobolectricTest : KoinTest {
         assertNotNull(session)
     }
 
-    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun findFirstAvailableServer() = runTest {
         val appContext = ApplicationProvider.getApplicationContext<Application>()
@@ -60,7 +59,7 @@ class ExampleRobolectricTest : KoinTest {
         val client = get<HttpClient>()
         val dur = measureTime {
             val urls = generateLocalServer(appContext)
-            result = client.scanUrls(urls + listOf(REMOTE_URL))
+            result = client.scanHosts(urls + listOf(REMOTE_URL))
         }
 
         println(dur)

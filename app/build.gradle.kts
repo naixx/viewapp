@@ -99,6 +99,9 @@ dependencies {
     implementation(libs.ktorfit.converters.flow)
     implementation(libs.ktor.client.cio)
 
+   // Coil for image loading
+   implementation(libs.coil.compose)
+   implementation(libs.coil.network)
 
     testImplementation(libs.robolectric)
     testImplementation("androidx.test:core-ktx:1.6.1")

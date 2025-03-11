@@ -191,7 +191,7 @@ class MainActivity : ComponentActivity() {
                     val conn by connectionState.collectAsState()
 
                     MainScreen(conn, state, modifier = Modifier.padding(innerPadding)) {
-                        startService()
+                       // startService()
                     }
                     val c = conn
                     if (c is ConnectionState.LoginRequired) {

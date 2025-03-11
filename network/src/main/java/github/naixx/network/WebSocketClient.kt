@@ -14,6 +14,7 @@ import org.koin.core.parameter.parametersOf
 
 const val ACCESS_POINT_URL = "http://10.0.0.1/"
 const val REMOTE_URL = "https://app.view.tl/"
+val WIFI_URL = "http://192.168.31.21/"
 private const val RECONNECT_DELAY_MS = 3000L
 
 sealed interface ConnectionState {
@@ -47,7 +48,7 @@ class WebSocketClient(
                 val foundServer = findServer(useLocalConnection, localUrls)
 
                 if (foundServer == null) {
-                    useLocalConnection = !useLocalConnection
+//                    TODO useLocalConnection = !useLocalConnection
                     println("switching to local connection $useLocalConnection")
                     if (useLocalConnection)
                         delay(RECONNECT_DELAY_MS)
@@ -85,7 +86,7 @@ class WebSocketClient(
                 connectionState.value = ConnectionState.Disconnected
                 session = null
                 // Switch connection type for next attempt
-                useLocalConnection = !useLocalConnection
+//              TODO  useLocalConnection = !useLocalConnection
                 // Add delay before reconnecting
                 delay(RECONNECT_DELAY_MS)
             }
@@ -114,7 +115,7 @@ class WebSocketClient(
         if (useLocalConnection) {
             // Try to use cached local address or scan for one
             if (cachedLocalAddress == null) {
-                cachedLocalAddress = client.scanUrls(localUrls) //todo start with local??
+                cachedLocalAddress = client.scanHosts(localUrls) //todo start with local??
             }
             cachedLocalAddress?.let { localAddress ->
                 runCatching {

@@ -5,7 +5,6 @@ import android.content.Context
 import android.net.wifi.WifiManager
 import github.naixx.network.ACCESS_POINT_URL
 
-val URL = "http://192.168.31.21/"
 
 @SuppressLint("DefaultLocale")
 fun generateLocalServer(c: Context): List<String> {

@@ -7,7 +7,7 @@ import io.ktor.client.call.body
 import io.ktor.client.request.get
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
-import kotlinx.serialization.Serializable
+import kotlinx.serialization.*
 
 @Serializable
 data class Auth(val session: String)
@@ -27,6 +27,12 @@ sealed class AddressResponse() : AddressResponse.Url {
     data class LoginRequired(val message: String, override var fromUrl: String? = null) : AddressResponse()
 }
 
+@Serializable
+data class Clip(
+    val index: Int, val id: Int, val frames: Int, val name: String,
+    @SerialName("image") val imageBase64: String
+)
+
 interface ViewApi {
 
     @POST("api/login")
@@ -35,15 +41,21 @@ interface ViewApi {
     @GET("socket/address")
     suspend fun socketUrl(): AddressResponse
 
+    @GET("clips")
+    suspend fun clips(): List<Clip>
+
+    @GET("download")
+    suspend fun download(@Query file: String): ByteArray
+
     @GET
     suspend fun socketUrl(@Url url: String): AddressResponse
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
-suspend fun HttpClient.scanUrls(urls: List<String>): AddressResponse? = withContext(Dispatchers.IO) {
+suspend fun HttpClient.scanHosts(hosts: List<String>): AddressResponse? = withContext(Dispatchers.IO) {
     val requestTimeout = 3000L
     withTimeoutOrNull(requestTimeout * 255) {
-        urls.asFlow()
+        hosts.asFlow()
             .flatMapMerge(concurrency = 30) { url -> // Process 10 requests concurrently
                 flow {
                     runCatching {
