@@ -83,6 +83,7 @@ dependencies {
 
     implementation(libs.kmp.libs.logger)
     implementation(libs.kmp.libs.prefs)
+    implementation(libs.kmp.libs.compose)
     implementation(libs.multiplatform.settings.no.arg)
     implementation(libs.multiplatform.settings.observable)
     implementation(libs.multiplatform.settings.serialization)

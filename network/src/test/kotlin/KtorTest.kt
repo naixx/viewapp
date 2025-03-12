@@ -1,10 +1,10 @@
 import github.naixx.network.*
 import github.naixx.network.AddressResponse.Address
 import io.ktor.client.HttpClient
+import io.ktor.client.call.NoTransformationFoundException
 import io.ktor.client.plugins.websocket.sendSerialized
 import io.ktor.websocket.*
-import io.mockk.every
-import io.mockk.mockk
+import io.mockk.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.test.runTest
@@ -68,6 +68,18 @@ class KtorTest : KoinTest {
             r = api.socketUrl()
         })
         assert(r is AddressResponse.Address)
+    }
+
+    @Test
+    fun `validate that clip info can be deserialized`() = runTest {
+        val api = get<ViewApi>(parameters = { parametersOf(URL) })
+
+        for (i in 101..329) {
+            try {
+                api.clipInfo("tL-$i")
+            } catch (e: NoTransformationFoundException) {
+            }
+        }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)

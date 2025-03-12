@@ -1,43 +1,46 @@
 package com.github.naixx.viewapp.ui
 
-import android.annotation.SuppressLint
-import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
+import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.tab.*
 import com.github.naixx.viewapp.R
 import com.github.naixx.viewapp.ui.theme.ViewAppTheme
-import github.naixx.network.*
 
-@SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
+object MainScreen : Screen {
+
+    @Composable
+    override fun Content() {
+        MainScreen()
+    }
+}
+
 @Composable
 fun MainScreen(
-    conn: ConnectionState,
-    messages: List<String>,
-    modifier: Modifier = Modifier,
-    onSend: () -> Unit
+
 ) {
-    ViewAppTheme {
-        val tabs = listOf(
-            StatusTab(messages),
-            ClipsTab()
-        )
-        TabNavigator(tabs.first()) {
-            Scaffold(
-                content = {
-                    CurrentTab()
-                },
-                bottomBar = {
-                    NavigationBar {
-                        tabs.forEach { tab ->
-                            TabNavigationItem(tab)
-                        }
+
+    val tabs = listOf(
+        StatusTab(listOf()),
+        ClipsTab()
+    )
+    TabNavigator(tabs.first()) {
+        Scaffold(
+            bottomBar = {
+                NavigationBar {
+                    tabs.forEach { tab ->
+                        TabNavigationItem(tab)
                     }
                 }
-            )
+            }
+        ) {
+            Box(modifier = Modifier.padding(it)) {
+                CurrentTab()
+            }
         }
     }
 }
@@ -107,22 +110,6 @@ fun GreetingPreview() {
 @Composable
 fun PreviewMainScreen() {
     ViewAppTheme {
-        MainScreen(ConnectionState.Disconnected, listOf("Hello", "two"), modifier = Modifier, onSend = { })
-    }
-}
-
-@Preview
-@Composable
-fun PreviewConnectedMainScreen() {
-    ViewAppTheme {
-        MainScreen(
-            ConnectionState.Connected(
-                AddressResponse.Address("test"),
-                true
-            ),
-            listOf(),
-            modifier = Modifier,
-            onSend = { }
-        )
+        MainScreen()
     }
 }

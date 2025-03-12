@@ -7,11 +7,13 @@ import android.os.*
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.Scaffold
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
+import cafe.adriel.voyager.core.annotation.ExperimentalVoyagerApi
+import cafe.adriel.voyager.navigator.*
 import coil3.ImageLoader
 import coil3.compose.setSingletonImageLoaderFactory
 import coil3.network.ktor3.KtorNetworkFetcherFactory
@@ -44,6 +46,7 @@ class MainActivity : ComponentActivity() {
     private val storageProvider: StorageProvider by inject()
     private val viewModel: MainViewModel by viewModel()
 
+    @OptIn(ExperimentalVoyagerApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -66,13 +69,19 @@ class MainActivity : ComponentActivity() {
                     .build()
             }
             ViewAppTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    val state by flow.collectAsState()
+                Surface(Modifier.fillMaxSize()) {
+
                     val conn by viewModel.connectionState.collectAsState()
 
-                    LL.e(conn)
-                    MainScreen(conn, state, modifier = Modifier.padding(innerPadding)) {
-                        // startService()
+                    Navigator(
+                        MainScreen, disposeBehavior = NavigatorDisposeBehavior( //to preserve models
+                            disposeNestedNavigators = false,
+                            disposeSteps = true
+                        )
+                    ) { superNav ->
+                        CompositionLocalProvider(LocalSuperNavigator provides superNav) {
+                            CurrentScreen()
+                        }
                     }
                     val c = conn
                     if (c is ConnectionState.LoginRequired) {
@@ -83,6 +92,7 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                 }
+                    
             }
         }
     }

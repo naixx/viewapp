@@ -10,7 +10,7 @@ import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import coil3.compose.AsyncImage
 import com.github.naixx.viewapp.utils.activityViewModel
-import github.naixx.network.*
+import github.naixx.network.Clip
 
 class ClipsScreen() : Screen {
 
@@ -18,12 +18,10 @@ class ClipsScreen() : Screen {
     override fun Content() {
         val viewModel = activityViewModel<MainViewModel>()
         val conn by viewModel.connectionState.collectAsState()
-        val c = conn
 
-        if (c is ConnectionState.Connected)
-            LaunchedEffect(c) {
-                viewModel.requestClips(c)
-            }
+        OnConnectedEffect(conn) {
+            viewModel.requestClips(it)
+        }
 
         val clips = viewModel.clips.collectAsState()
         Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
@@ -39,7 +37,11 @@ class ClipsScreen() : Screen {
 
 @Composable
 private fun ClipItem(clip: Clip, modifier: Modifier = Modifier) {
-    Card(modifier = modifier.fillMaxWidth().padding(8.dp)) {
+    val navigator = SuperNav
+
+    Card(modifier = modifier.fillMaxWidth().padding(8.dp), onClick = {
+        navigator?.push(ClipInfoScreen(clip))
+    }) {
         Column(
             modifier = Modifier.padding(0.dp),
             horizontalAlignment = Alignment.CenterHorizontally
