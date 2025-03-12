@@ -73,7 +73,7 @@ val networkModule = module {
 //            }
             install(WebSockets) {
                 contentConverter = KotlinxWebsocketSerializationConverter(json)
-                pingIntervalMillis = 5000
+                pingIntervalMillis = 1000
             }
             HttpResponseValidator {
                 validateResponse { response ->

@@ -104,6 +104,12 @@ class WebSocketClient(
             connectionState.value = newState
             onCreate(this, newState)
 
+            launch {
+                while (isActive) {
+                    sendSerialized(Ping())
+                    delay(3000)
+                }
+            }
             while (isActive) {
                 val message = receiveDeserialized<BaseMessage>()
                 onMessage(message)

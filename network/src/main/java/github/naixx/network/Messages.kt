@@ -45,7 +45,7 @@ data class Connected(
     val connected: Boolean,
     val model: String,
     val supports: Map<String, String>,
-    val ack: String?=null,
+    val ack: String? = null,
     override val type: String
 ) : BaseMessage()
 
@@ -110,15 +110,6 @@ data class TimelapseClips(
     val clips: List<Clip>,
     override val type: String
 ) : BaseMessage() {
-
-    @Serializable
-    data class Clip(
-        val index: Int,
-        val id: Int,
-        val frames: Int,
-        val name: String,
-        val image: String
-    )
 }
 
 //language=json
@@ -1455,6 +1446,7 @@ val json = """
       "type": "timelapse-clip-info"
     }
 """.trimIndent()
+
 //language=json
 val program = """
     {

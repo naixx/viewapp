@@ -29,8 +29,12 @@ sealed class AddressResponse() : AddressResponse.Url {
 
 @Serializable
 data class Clip(
-    val index: Int, val id: Int, val frames: Int, val name: String,
-    @SerialName("image") val imageBase64: String
+    val index: Int,
+    val id: Int,
+    val frames: Int,
+    val name: String,
+    @SerialName("image")
+    val imageBase64: String
 )
 
 interface ViewApi {

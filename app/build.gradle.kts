@@ -72,7 +72,14 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    implementation(libs.androidx.compose.lifecycle)
+    implementation(libs.lifecycle.viewModelKtx)
     implementation("org.jmdns:jmdns:3.6.0")
+
+    implementation(libs.voyager.navigator)
+    implementation(libs.voyager.transitions)
+    implementation(libs.voyager.koin)
+    implementation(libs.voyager.tab.navigator)
 
     implementation(libs.kmp.libs.logger)
     implementation(libs.kmp.libs.prefs)
@@ -88,7 +95,9 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
 
     implementation(libs.koin.core)
-    implementation(libs.koin.android)
+    implementation(libs.koin.androidx.compose)
+    implementation(libs.koin.compose)
+//    implementation(libs.koin.compose.viewmodel)
     implementation(libs.ktorfit)
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.client.content.negotiation)
@@ -99,9 +108,11 @@ dependencies {
     implementation(libs.ktorfit.converters.flow)
     implementation(libs.ktor.client.cio)
 
-   // Coil for image loading
-   implementation(libs.coil.compose)
-   implementation(libs.coil.network)
+    // Coil for image loading
+    implementation(libs.coil.compose)
+    implementation(libs.coil.network)
+
+    implementation(libs.kotlinx.collections.immutable)
 
     testImplementation(libs.robolectric)
     testImplementation("androidx.test:core-ktx:1.6.1")

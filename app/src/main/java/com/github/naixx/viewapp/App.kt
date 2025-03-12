@@ -1,7 +1,7 @@
 package com.github.naixx.viewapp
 
 import android.app.*
-import github.naixx.network.networkModule
+import github.naixx.network.*
 import io.github.aakira.napier.*
 import org.koin.android.ext.koin.*
 import org.koin.core.context.GlobalContext.startKoin
@@ -17,6 +17,7 @@ class App : Application() {
             modules(networkModule, appModule)
         }
         createNotificationChannel()
+
     }
 
     private fun createNotificationChannel() {
@@ -32,3 +33,4 @@ class App : Application() {
         manager?.createNotificationChannel(channel)
     }
 }
+
