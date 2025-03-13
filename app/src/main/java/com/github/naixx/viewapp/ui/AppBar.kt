@@ -8,9 +8,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarColors
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -49,6 +51,12 @@ fun AppBar(
 @Composable
 fun AppBarWithBack(
     title: String,
+    modifier: Modifier = Modifier,
+    colors: TopAppBarColors = TopAppBarDefaults.topAppBarColors(
+        containerColor = Color(0xFF222222),
+        titleContentColor = Color.White,
+        navigationIconContentColor = Color.White
+    ),
     onBackClick: () -> Unit
 ) {
     TopAppBar(
@@ -67,15 +75,13 @@ fun AppBarWithBack(
                 )
             }
         },
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = Color(0xFF222222),
-            titleContentColor = Color.White,
-            navigationIconContentColor = Color.White
-        )
+        colors = colors,
+        modifier = modifier
     )
 }
 
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Preview(showBackground = true, backgroundColor = 0xFF333333)
 @Composable
 fun AppBarPreview() {

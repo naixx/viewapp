@@ -42,6 +42,68 @@ class MainViewModel : ViewModel(), KoinComponent {
     // Track download jobs to allow cancellation
     private val downloadJobs = mutableMapOf<String, Job>()
 
+    fun isDownloading(clipName: String): Boolean {
+        return downloadJobs.containsKey(clipName) && downloadJobs[clipName]!!.isActive
+    }
+
+    /**
+     * Checks for existing frames without starting download
+     * Returns Pair(downloadedCount, totalFrames)
+     */
+    suspend fun checkExistingFrames(clipName: String, context: Context, totalFrames: Int): Pair<Int, Int> {
+        return withContext(Dispatchers.IO) {
+            val cacheDir = File(context.filesDir, "timelapses/$clipName")
+            val downloadedIndices = mutableListOf<Int>()
+
+            // Get the actual total frame count, prefer clip.frames if available
+            val realTotalFrames = if (totalFrames > 0) {
+                totalFrames
+            } else {
+                try {
+                    (connectionState.value as? ConnectionState.Connected)?.let { state ->
+                        val viewApi: ViewApi = get<ViewApi> { parametersOf(state.address.fromUrl) }
+                        viewApi.clipInfo(clipName).frames
+                    } ?: 0
+                } catch (e: Exception) {
+                    LL.e("Error getting clip info: ${e.message}")
+                    0
+                }
+            }
+
+            // Check which files are already downloaded
+            if (cacheDir.exists()) {
+                for (i in 1..realTotalFrames) {
+                    val frameFile = File(cacheDir, "frame_$i.jpg")
+                    if (frameFile.exists()) {
+                        downloadedIndices.add(i)
+                    }
+                }
+            }
+
+            // Update the state flows with the found frames
+            if (downloadedIndices.isNotEmpty()) {
+                downloadedFrames.value = downloadedFrames.value.toMutableMap().apply {
+                    put(clipName, downloadedIndices.sorted())
+                }
+
+                // Update progress only if we know the total frames
+                if (realTotalFrames > 0) {
+                    val progress = downloadedIndices.size.toFloat() / realTotalFrames
+                    downloadProgress.value = downloadProgress.value.toMutableMap().apply {
+                        put(clipName, if (downloadedIndices.size >= realTotalFrames) 1f else progress)
+                    }
+                }
+
+                // Set current frame to first frame if not already set
+                if (currentFrameIndex.value <= 0) {
+                    setCurrentFrame(1)
+                }
+            }
+
+            Pair(downloadedIndices.size, realTotalFrames)
+        }
+    }
+
     fun requestClips(connection: ConnectionState.Connected) {
         viewModelScope.launch {
             try {
@@ -62,7 +124,9 @@ class MainViewModel : ViewModel(), KoinComponent {
 
     fun downloadFrames(clipName: String, context: Context) {
         if (isPlaying.value) return
-        if (downloadProgress.value[clipName] != null && downloadProgress.value[clipName]!! > 0 && downloadProgress.value[clipName]!! < 1f) return
+        // Only block starting a new download if we're actively downloading already (not resuming)
+        if (downloadJobs[clipName] != null && downloadProgress.value[clipName] != null &&
+            downloadProgress.value[clipName]!! > 0 && downloadProgress.value[clipName]!! < 1f) return
 
         val job = viewModelScope.launch {
             try {

@@ -19,6 +19,7 @@ import cafe.adriel.voyager.navigator.*
 import coil3.compose.AsyncImage
 import coil3.request.*
 import com.github.naixx.compose.*
+import com.github.naixx.logger.LL
 import com.github.naixx.viewapp.utils.activityViewModel
 import github.naixx.network.*
 import kotlinx.coroutines.*
@@ -27,6 +28,7 @@ import java.time.format.DateTimeFormatter
 
 class ClipInfoScreen(val clip: Clip) : Screen {
 
+    @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     override fun Content() {
         val viewModel = activityViewModel<MainViewModel>()
@@ -43,7 +45,19 @@ class ClipInfoScreen(val clip: Clip) : Screen {
         val progress = downloadProgress[clip.name] ?: 0f
 
         val scope = rememberCoroutineScope()
+        LL.e("scope = " + scope)
         var cacheSize by remember { mutableStateOf<String?>(null) }
+
+        LaunchedEffect(Unit) {
+            scope.launch(Dispatchers.IO) {
+                // Check for existing frames and update progress without starting download
+                val existingFrames = viewModel.checkExistingFrames(clip.name, context, clip.frames.toInt())
+                if (existingFrames.first > 0 && existingFrames.second > 0) {
+                    val size = viewModel.getCacheSize(clip.name, context)
+                    cacheSize = formatFileSize(size)
+                }
+            }
+        }
 
         LaunchedEffect(frames.size) {
             if (frames.isNotEmpty()) {
@@ -80,17 +94,17 @@ class ClipInfoScreen(val clip: Clip) : Screen {
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
         ) {
-            AppBarWithBack(title = clip.name, onBackClick = { navigator.pop() })
 
             // Timelapse player
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(4f / 3f)
+                    .aspectRatio(160f / 106f)
                     .background(Color.Black)
-                    .padding(horizontal = 16.dp),
+                    ,
                 contentAlignment = Alignment.Center
             ) {
+
                 var currentPainter by remember { mutableStateOf<Painter?>(null) }
                 if (progress > 0f && frames.isNotEmpty() && currentFrameIndex > 0 && currentFrameIndex <= frames.size) {
                     val frameFile = viewModel.getFrameFile(clip.name, currentFrameIndex, context)
@@ -108,27 +122,47 @@ class ClipInfoScreen(val clip: Clip) : Screen {
                             modifier = Modifier.fillMaxSize()
                         )
                     }
-                } else {
-                    if (progress > 0f && progress < 1f) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            CircularProgressIndicator(progress = progress)
-                            Spacer(modifier = Modifier.height(8.dp))
+                }
+                if (progress > 0f && progress < 1f) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        CircularProgressIndicator(progress = { progress })
+                        Spacer(modifier = Modifier.height(8.dp))
+                        val downloadedCount = frames.size
+                        val totalFrames = clip.frames.takeIf { it > 0 }
+                            ?: if (progress > 0 && frames.isNotEmpty()) (frames.size / progress).toInt() else 0
+
+                        if (totalFrames > 0) {
                             Text(
-                                text = "Downloading: ${(progress * 100).toInt()}%",
-                                color = Color.White
+                                text = "Downloaded $downloadedCount of $totalFrames frames (${(progress * 100).toInt()}%)",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        } else {
+                            Text(
+                                text = "Downloaded ${frames.size} frames (${(progress * 100).toInt()}%)",
+                                style = MaterialTheme.typography.bodyMedium
                             )
                         }
-                    } else {
-                        Text(
-                            text = "Press Download to begin",
-                            color = Color.White
-                        )
+
                     }
+                } else if (progress < 1f) {
+                    Text(
+                        text = "Press Download to begin",
+                        color = Color.White
+                    )
                 }
+
+                AppBarWithBack(
+                    title = clip.name,
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
+                    onBackClick = { navigator.pop() },
+                    modifier = Modifier.align(Alignment.TopStart)
+                )
             }
+
+
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -177,82 +211,42 @@ class ClipInfoScreen(val clip: Clip) : Screen {
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (frames.isEmpty() || progress == 0f) {
-                    Button(
-                        onClick = {
-                            scope.launch {
+                if (progress > 0f && progress < 1f) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (!viewModel.isDownloading(clip.name))
+                            VButton(
+                                text = "Resume Download",
+                                imageVector = Icons.Default.PlayArrow
+                            ) {
                                 viewModel.downloadFrames(clip.name, context)
                             }
-                        },
-                        enabled = progress == 0f
+                        else
+                            VButton(
+                                text = "Cancel",
+                                imageVector = Icons.Default.Close,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.error
+                                )
+                            ) { viewModel.stopDownload(clip.name) }
+                    }
+                } else if (frames.isEmpty()) {
+                    VButton(
+                        text = "Download Frames",
+                        imageVector = Icons.Default.Download
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.AddCircle,
-                            contentDescription = "Download",
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Download Frames")
+                        viewModel.downloadFrames(clip.name, context)
                     }
                 } else if (progress == 1f) {
-                    Button(
-                        onClick = { viewModel.togglePlayback(!isPlaying) }
-                    ) {
-                        Icon(
-                            imageVector = if (isPlaying) Icons.Default.Menu else Icons.Default.PlayArrow,
-                            contentDescription = if (isPlaying) "Pause" else "Play",
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = if (isPlaying) "Pause" else "Play")
-                    }
+                    VButton(
+                        text = if (isPlaying) "Pause" else "Play",
+                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow
+                    ) { viewModel.togglePlayback(!isPlaying) }
 
                     Spacer(modifier = Modifier.width(16.dp))
 
-                    OutlinedButton(
-                        onClick = { viewModel.setCurrentFrame(1) }
-                    ) {
-                        Text("Reset")
-                    }
-                }
-            }
-
-            // Download progress
-            if (progress > 0f && progress < 1f) {
-                Spacer(modifier = Modifier.height(8.dp))
-                LinearProgressIndicator(
-                    progress = progress,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp, horizontal = 16.dp)
-                )
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp, start = 16.dp, end = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Downloading: ${(progress * 100).toInt()}%",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-
-                    Button(
-                        onClick = { viewModel.stopDownload(clip.name) },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.error
-                        ),
-                        modifier = Modifier.padding(start = 8.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Cancel",
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Cancel")
-                    }
+                    VButton(
+                        text = "Reset"
+                    ) { viewModel.setCurrentFrame(1) }
                 }
             }
 
@@ -272,7 +266,7 @@ class ClipInfoScreen(val clip: Clip) : Screen {
                 }
             }
 
-            // Cache Management Card - at the bottom after info card
+            // Cache Management Card
             if (frames.isNotEmpty() && progress == 1f) {
                 Spacer(modifier = Modifier.height(16.dp))
                 Card(
@@ -285,13 +279,6 @@ class ClipInfoScreen(val clip: Clip) : Screen {
                         modifier = Modifier.padding(16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text(
-                            text = "Cache Management",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
 
                         Text(
                             text = cacheSize?.let { "Cache size: $it" } ?: "Calculating cache size...",
@@ -300,24 +287,15 @@ class ClipInfoScreen(val clip: Clip) : Screen {
 
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        Button(
-                            onClick = {
-                                scope.launch {
-                                    viewModel.deleteCache(clip.name, context)
-                                    cacheSize = null
-                                }
-                            },
+                        VButton(
+                            text = "Delete Cache",
+                            imageVector = Icons.Default.Delete,
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.error
                             )
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Delete,
-                                contentDescription = "Delete Cache",
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Delete Cache")
+                            viewModel.deleteCache(clip.name, context)
+                            cacheSize = null
                         }
                     }
                 }
@@ -399,14 +377,6 @@ private fun calculateDuration(frames: Int, fps: Int): String {
     val seconds = frames / fps
 
     return "${seconds}s"
-}
-
-@Composable
-fun OnConnectedEffect(c: ConnectionState, action: suspend (ConnectionState.Connected) -> Unit) {
-    if (c is ConnectionState.Connected)
-        LaunchedEffect(c) {
-            action(c)
-        }
 }
 
 // Removing duplicate formatFileSize function,
