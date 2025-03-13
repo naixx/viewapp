@@ -1,38 +1,43 @@
 package com.github.naixx.viewapp.ui
 
-import androidx.compose.foundation.*
+import android.content.Context
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.AddCircle
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Menu
+
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
-import cafe.adriel.voyager.navigator.*
-import coil3.compose.AsyncImage
-import coil3.request.*
-import com.github.naixx.compose.*
-import com.github.naixx.viewapp.utils.activityViewModel
-import github.naixx.network.*
-import kotlinx.coroutines.*
-import java.time.*
-import java.time.format.DateTimeFormatter
 
-class ClipInfoScreen(val clip: Clip) : Screen {
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.request.crossfade
+import com.github.naixx.viewapp.utils.activityViewModel
+import github.naixx.network.Clip
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import java.io.File
+
+class TimelapsePlayerScreen(val clip: Clip) : Screen {
 
     @Composable
     override fun Content() {
         val viewModel = activityViewModel<MainViewModel>()
-        val conn by viewModel.connectionState.collectAsState()
-        var clipInfo: UiState<TimelapseClipInfo?> by remember { mutableStateOf(UiState.Loading) }
-        val navigator = LocalNavigator.currentOrThrow
         val context = LocalContext.current
         val downloadProgress by viewModel.downloadProgress.collectAsState()
         val downloadedFrames by viewModel.downloadedFrames.collectAsState()
@@ -45,6 +50,7 @@ class ClipInfoScreen(val clip: Clip) : Screen {
         val scope = rememberCoroutineScope()
         var cacheSize by remember { mutableStateOf<String?>(null) }
 
+        // Get cache size
         LaunchedEffect(frames.size) {
             if (frames.isNotEmpty()) {
                 val size = viewModel.getCacheSize(clip.name, context)
@@ -52,6 +58,7 @@ class ClipInfoScreen(val clip: Clip) : Screen {
             }
         }
 
+        // Stop downloads and playback when leaving the screen
         DisposableEffect(key1 = Unit) {
             onDispose {
                 viewModel.togglePlayback(false)
@@ -61,43 +68,48 @@ class ClipInfoScreen(val clip: Clip) : Screen {
             }
         }
 
+        // Playback effect - advances frames during playback
         LaunchedEffect(isPlaying, currentFrameIndex, frames.size) {
             if (isPlaying && frames.isNotEmpty()) {
                 while (isPlaying) {
-                    delay(33)
+                    delay(33) // ~30fps
                     val nextFrame = if (currentFrameIndex >= frames.size) 1 else currentFrameIndex + 1
                     viewModel.setCurrentFrame(nextFrame)
                 }
             }
         }
 
-        OnConnectedEffect(conn) {
-            clipInfo = viewModel.clipInfo(clip)
-        }
-
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
+                .padding(16.dp)
         ) {
-            AppBarWithBack(title = clip.name, onBackClick = { navigator.pop() })
+            Text(
+                text = "${clip.name} Timelapse",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
+            )
 
-            // Timelapse player
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Frame display area - shows the current frame
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(4f / 3f)
-                    .background(Color.Black)
-                    .padding(horizontal = 16.dp),
+                    .aspectRatio(4f/3f)
+                    .background(Color.Black),
                 contentAlignment = Alignment.Center
             ) {
                 var currentPainter by remember { mutableStateOf<Painter?>(null) }
                 if (progress > 0f && frames.isNotEmpty() && currentFrameIndex > 0 && currentFrameIndex <= frames.size) {
+                    // Show current frame
                     val frameFile = viewModel.getFrameFile(clip.name, currentFrameIndex, context)
                     if (frameFile != null) {
                         AsyncImage(
                             model = ImageRequest.Builder(context)
                                 .data(frameFile)
+
                                 .crossfade(false)
                                 .build(),
                             contentDescription = "Frame $currentFrameIndex",
@@ -109,6 +121,7 @@ class ClipInfoScreen(val clip: Clip) : Screen {
                         )
                     }
                 } else {
+                    // Show loading or instructions
                     if (progress > 0f && progress < 1f) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
@@ -130,21 +143,21 @@ class ClipInfoScreen(val clip: Clip) : Screen {
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // Player controls
+            // Frame slider - lets user scrub through frames
             if (frames.isNotEmpty()) {
                 Text(
                     text = "Frame: $currentFrameIndex of ${frames.size}",
                     style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     textAlign = TextAlign.Center
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
@@ -169,22 +182,23 @@ class ClipInfoScreen(val clip: Clip) : Screen {
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // Playback controls
+            // Control buttons (download/play/pause)
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (frames.isEmpty() || progress == 0f) {
+                    // Download button if no frames downloaded or download was canceled
                     Button(
                         onClick = {
                             scope.launch {
                                 viewModel.downloadFrames(clip.name, context)
                             }
                         },
-                        enabled = progress == 0f
+                        enabled = progress == 0f  // Only enable if not currently downloading
                     ) {
                         Icon(
                             imageVector = Icons.Default.AddCircle,
@@ -195,6 +209,7 @@ class ClipInfoScreen(val clip: Clip) : Screen {
                         Text("Download Frames")
                     }
                 } else if (progress == 1f) {
+                    // Play/pause button once frames are downloaded
                     Button(
                         onClick = { viewModel.togglePlayback(!isPlaying) }
                     ) {
@@ -209,6 +224,7 @@ class ClipInfoScreen(val clip: Clip) : Screen {
 
                     Spacer(modifier = Modifier.width(16.dp))
 
+                    // Reset to first frame button
                     OutlinedButton(
                         onClick = { viewModel.setCurrentFrame(1) }
                     ) {
@@ -217,19 +233,19 @@ class ClipInfoScreen(val clip: Clip) : Screen {
                 }
             }
 
-            // Download progress
+            // Download progress text
             if (progress > 0f && progress < 1f) {
                 Spacer(modifier = Modifier.height(8.dp))
                 LinearProgressIndicator(
                     progress = progress,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 8.dp, horizontal = 16.dp)
+                        .padding(vertical = 8.dp)
                 )
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 8.dp, start = 16.dp, end = 16.dp),
+                        .padding(top = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -238,6 +254,7 @@ class ClipInfoScreen(val clip: Clip) : Screen {
                         style = MaterialTheme.typography.bodyMedium
                     )
 
+                    // Cancel download button
                     Button(
                         onClick = { viewModel.stopDownload(clip.name) },
                         colors = ButtonDefaults.buttonColors(
@@ -256,27 +273,11 @@ class ClipInfoScreen(val clip: Clip) : Screen {
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Clip info card
-            clipInfo.Render({
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("Loading clip info...")
-                }
-            }) {
-                it?.let { info ->
-                    InfoView(info)
-                }
-            }
-
-            // Cache Management Card - at the bottom after info card
+            // Show cache management when frames are downloaded
             if (frames.isNotEmpty() && progress == 1f) {
                 Spacer(modifier = Modifier.height(16.dp))
                 Card(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant
                     )
@@ -321,109 +322,16 @@ class ClipInfoScreen(val clip: Clip) : Screen {
                         }
                     }
                 }
-                Spacer(modifier = Modifier.height(16.dp))
             }
         }
     }
-}
 
-@Composable
-private fun InfoView(info: TimelapseClipInfo) {
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Color(0xFF222222))
-                .padding(16.dp)
-        ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = "${info.name} Details",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                val formattedDate = formatDate(info.date)
-                Text(text = formattedDate, color = Color.LightGray)
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                info.frames?.let { frames ->
-                    Text(
-                        text = "$frames frames (${calculateDuration(frames, 30)} at 30fps)",
-                        color = Color.LightGray
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                val shutterValue = info.status.cameraSettings.shutter
-                val apertureValue = info.status.cameraSettings.aperture
-                val isoValue = info.status.cameraSettings.iso
-                Text(
-                    text = "Start exposure: $shutterValue f/$apertureValue $isoValue ISO",
-                    color = Color.LightGray
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Divider(color = Color.DarkGray, thickness = 0.5.dp)
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text(
-                    text = "Interval: (${info.program.intervalMode}) day ${info.program.dayInterval}s, night ${info.program.nightInterval}s",
-                    color = Color.LightGray
-                )
-            }
+    private fun formatFileSize(size: Long): String {
+        val kb = size / 1024.0
+        if (kb < 1024) {
+            return String.format("%.2f KB", kb)
         }
-    }
-}
-
-private fun formatDate(dateString: String): String {
-    return try {
-        val instant = Instant.parse(dateString)
-        val localDateTime = instant.atZone(ZoneId.systemDefault()).toLocalDateTime()
-        val formatter = DateTimeFormatter.ofPattern("MMM dd, yyyy, HH:mm:ss a")
-        localDateTime.format(formatter)
-    } catch (e: Exception) {
-        dateString
-    }
-}
-
-private fun calculateDuration(frames: Int, fps: Int): String {
-    val seconds = frames / fps
-
-    return "${seconds}s"
-}
-
-@Composable
-fun OnConnectedEffect(c: ConnectionState, action: suspend (ConnectionState.Connected) -> Unit) {
-    if (c is ConnectionState.Connected)
-        LaunchedEffect(c) {
-            action(c)
-        }
-}
-
-// Removing duplicate formatFileSize function,
-// so it will only be here
-private fun formatFileSize(size: Long): String {
-    val kb = size / 1024.0
-    if (kb < 1024) {
-        return String.format("%.2f KB", kb)
-    }
-    val mb = kb / 1024.0
-    return String.format("%.2f MB", mb)
-}
-
-@Preview(showSystemUi = true)
-@Composable
-fun InfoViewPreview() {
-    MaterialTheme(darkColorScheme()) {
-        InfoView(sampleClipInfo)
+        val mb = kb / 1024.0
+        return String.format("%.2f MB", mb)
     }
 }
