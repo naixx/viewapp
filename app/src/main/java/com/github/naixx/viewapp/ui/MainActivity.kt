@@ -21,6 +21,7 @@ import coil3.request.crossfade
 import coil3.util.DebugLogger
 import com.github.naixx.logger.LL
 import com.github.naixx.viewapp.*
+import com.github.naixx.viewapp.WebSocketService.Companion.ACTION_STOP_SERVICE
 import com.github.naixx.viewapp.ui.theme.ViewAppTheme
 import com.github.naixx.viewapp.utils.ClipMapper
 import github.naixx.network.*
@@ -92,7 +93,7 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                 }
-                    
+
             }
         }
     }
@@ -113,10 +114,17 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun startService() {
+    fun startService() {
         val intent = Intent(this, WebSocketService::class.java)
         startService(intent)
         bind()
+    }
+    fun stopService() {
+        val stopIntent = Intent(this, WebSocketService::class.java).apply {
+            action = ACTION_STOP_SERVICE
+        }
+        startService(stopIntent)
+        unbindService(serviceConnection).also { isBound.value = false }
     }
 
     private fun requestNotificationPermission() {
@@ -138,19 +146,20 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    var isBound = MutableStateFlow(false)
+
     private val serviceConnection = object : ServiceConnection {
-        var isBound = false
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
             LL.e(name)
             val service = (binder as WebSocketService.LocalBinder).getService()
-            isBound = true
+            isBound.value = true
             service.messages.onEach {
                 flow.value += it
             }.launchIn(lifecycleScope)
             service.connectionState.onEach {
                 viewModel.connectionState.value = it
-                if (it is ConnectionState.LoginRequired && isBound)
-                    unbindService(this).also { isBound = false }
+                if (it is ConnectionState.LoginRequired && isBound.value)
+                    unbindService(this).also { isBound.value = false }
             }.launchIn(lifecycleScope)
             out.onEach {
                 service.send(it)
