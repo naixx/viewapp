@@ -1,9 +1,13 @@
 package com.github.naixx.viewapp.ui
 
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.OpenInNew
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
@@ -19,7 +23,7 @@ import cafe.adriel.voyager.navigator.*
 import coil3.compose.AsyncImage
 import coil3.request.*
 import com.github.naixx.compose.*
-import com.github.naixx.logger.LL
+import com.github.naixx.viewapp.encoding.EncodingResult
 import com.github.naixx.viewapp.utils.activityViewModel
 import github.naixx.network.*
 import kotlinx.coroutines.*
@@ -43,12 +47,14 @@ class ClipInfoScreen(val clip: Clip) : Screen {
         val downloadedFrames by timelapseViewModel.downloadedFrames.collectAsState()
         val currentFrameIndex by timelapseViewModel.currentFrameIndex.collectAsState()
         val isPlaying by timelapseViewModel.isPlaying.collectAsState()
+        val exportProgress by timelapseViewModel.exportProgress.collectAsState()
 
         val frames = downloadedFrames
         val progress = downloadProgress
 
         val scope = rememberCoroutineScope()
         var cacheSize by remember { mutableStateOf<String?>(null) }
+        var lastExportedUri by remember { mutableStateOf<Uri?>(null) }
 
         LaunchedEffect(Unit) {
             scope.launch(Dispatchers.IO) {
@@ -86,6 +92,29 @@ class ClipInfoScreen(val clip: Clip) : Screen {
             }
         }
 
+        LaunchedEffect(Unit) {
+            timelapseViewModel.exportResult.collect { result ->
+                when (result) {
+                    is EncodingResult.Success -> {
+                        Toast.makeText(context, "Video exported successfully", Toast.LENGTH_LONG).show()
+                        lastExportedUri = result.uri
+                    }
+
+                    is EncodingResult.Error -> {
+                        Toast.makeText(context, "Export failed: ${result.message}", Toast.LENGTH_LONG).show()
+                    }
+
+                    is EncodingResult.Canceled -> {
+                        Toast.makeText(context, "Export was canceled", Toast.LENGTH_LONG).show()
+                    }
+
+                    else -> {
+                        Toast.makeText(context, "Unknown export result", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+        }
+
         OnConnectedEffect(conn) {
             clipInfo = timelapseViewModel.clipInfo(conn)
         }
@@ -101,8 +130,7 @@ class ClipInfoScreen(val clip: Clip) : Screen {
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(160f / 106f)
-                    .background(Color.Black)
-                    ,
+                    .background(Color.Black),
                 contentAlignment = Alignment.Center
             ) {
 
@@ -136,17 +164,20 @@ class ClipInfoScreen(val clip: Clip) : Screen {
                             ?: if (progress > 0 && frames.isNotEmpty()) (frames.size / progress).toInt() else 0
 
                         if (totalFrames > 0) {
-                            Text(
-                                text = "Downloaded $downloadedCount of $totalFrames frames (${(progress * 100).toInt()}%)",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = "Downloaded $downloadedCount of $totalFrames frames (${(progress * 100).toInt()}%)",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
                         } else {
-                            Text(
-                                text = "Downloaded ${frames.size} frames (${(progress * 100).toInt()}%)",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = "Downloaded ${frames.size} frames (${(progress * 100).toInt()}%)",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
                         }
-
                     }
                 } else if (progress < 1f) {
                     Text(
@@ -169,8 +200,22 @@ class ClipInfoScreen(val clip: Clip) : Screen {
 
             // Player controls
             if (frames.isNotEmpty()) {
+                val fps = 30 // Default framerate for estimation
+                val totalDurationSecs = frames.size / fps
+                val currentTimeSecs = currentFrameIndex / fps
+
+                val totalTimeFormatted = formatTime(totalDurationSecs)
+                val currentTimeFormatted = formatTime(currentTimeSecs)
+
                 Text(
                     text = "Frame: $currentFrameIndex of ${frames.size}",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    textAlign = TextAlign.Center
+                )
+
+                Text(
+                    text = "Time: $currentTimeFormatted / $totalTimeFormatted at ${fps}fps",
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                     textAlign = TextAlign.Center
@@ -248,6 +293,56 @@ class ClipInfoScreen(val clip: Clip) : Screen {
                     VButton(
                         text = "Reset"
                     ) { timelapseViewModel.setCurrentFrame(1) }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Export Video button
+            if (frames.isNotEmpty()) {
+                Spacer(modifier = Modifier.width(16.dp))
+                Row(modifier = Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+
+                    if (exportProgress > 0f && exportProgress < 1f) {
+                        // Show export progress
+
+                        CircularProgressIndicator(progress = { exportProgress })
+                        Spacer(modifier = Modifier.size(4.dp))
+
+                            Text(
+                                text = "Exporting: ${(exportProgress * 100).toInt()}%",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+
+                        Spacer(modifier = Modifier.size(4.dp))
+                        VButton(
+                            text = "Cancel",
+                            imageVector = Icons.Default.Close,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.error
+                            )
+                        ) {
+                            timelapseViewModel.cancelExport()
+                        }
+                    } else {
+                        VButton(
+                            text = "Export Video",
+                            imageVector = Icons.Default.VideoLibrary
+                        ) {
+                            timelapseViewModel.exportVideo(context)
+                        }
+                        Spacer(modifier = Modifier.size(4.dp))
+                        if (lastExportedUri != null) {
+                            VButton(
+                                text = "Open Video",
+                                imageVector = Icons.Outlined.OpenInNew
+                            ) {
+                                val intent = Intent(Intent.ACTION_VIEW)
+                                intent.setDataAndType(lastExportedUri, "video/mp4")
+                                context.startActivity(intent)
+                            }
+                        }
+                    }
                 }
             }
 
@@ -389,6 +484,18 @@ private fun formatFileSize(size: Long): String {
     }
     val mb = kb / 1024.0
     return String.format("%.2f MB", mb)
+}
+
+private fun formatTime(seconds: Int): String {
+    val hours = seconds / 3600
+    val minutes = (seconds % 3600) / 60
+    val secondsRemaining = seconds % 60
+
+    return if (hours > 0) {
+        String.format("%02d:%02d:%02d", hours, minutes, secondsRemaining)
+    } else {
+        String.format("%02d:%02d", minutes, secondsRemaining)
+    }
 }
 
 @Preview(showSystemUi = true)

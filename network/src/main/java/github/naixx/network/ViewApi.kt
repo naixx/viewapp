@@ -1,5 +1,6 @@
 package github.naixx.network
 
+import com.github.naixx.core.SerializableInterop
 import de.jensklingenberg.ktorfit.http.*
 import github.naixx.network.internal.AddressResponseSerializer
 import io.ktor.client.HttpClient
@@ -35,7 +36,7 @@ data class Clip(
     val name: String,
     @SerialName("image")
     val imageBase64: String
-)
+): SerializableInterop
 
 interface ViewApi {
 

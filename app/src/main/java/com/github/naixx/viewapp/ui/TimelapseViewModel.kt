@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.github.naixx.compose.UiState
 import com.github.naixx.compose.catching
 import com.github.naixx.logger.LL
+import com.github.naixx.viewapp.encoding.EncodingResult
+import com.github.naixx.viewapp.encoding.VideoExportRepository
 import github.naixx.network.Clip
 import github.naixx.network.ConnectionState
 import github.naixx.network.TimelapseClipInfo
@@ -14,7 +16,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -22,19 +27,27 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.get
+import org.koin.core.component.inject
 import org.koin.core.parameter.parametersOf
 import java.io.File
 import java.util.Collections
 
 class TimelapseViewModel(private val clip: Clip) : ViewModel(), KoinComponent {
 
-    val downloadedFrames = MutableStateFlow<List<Int>>(emptyList())
-    val downloadProgress = MutableStateFlow(0f)
-    val currentFrameIndex = MutableStateFlow(0)
-    val isPlaying = MutableStateFlow(false)
+    val downloadedFrames: MutableStateFlow<List<Int>> = MutableStateFlow(emptyList())
+    val downloadProgress: MutableStateFlow<Float> = MutableStateFlow(0f)
+    val currentFrameIndex: MutableStateFlow<Int> = MutableStateFlow(0)
+    val isPlaying: MutableStateFlow<Boolean> = MutableStateFlow(false)
+
+    private val _exportProgress: MutableStateFlow<Float> = MutableStateFlow(0f)
+    val exportProgress: StateFlow<Float> = _exportProgress.asStateFlow()
+
+    val exportResult = MutableSharedFlow<EncodingResult>(extraBufferCapacity = 1)
 
     private var downloadJob: Job? = null
+    private var exportJob: Job? = null
     private var totalFrames: Int = clip.frames
+    private val videoExportRepository: VideoExportRepository by inject()
 
     /**
      * Returns whether frames are currently being downloaded
@@ -273,9 +286,55 @@ class TimelapseViewModel(private val clip: Clip) : ViewModel(), KoinComponent {
         }
     }
 
+    fun exportVideo(context: Context, fps: Int = 30) {
+        if (downloadedFrames.value.isEmpty() || exportJob?.isActive == true) return
+
+        exportJob = viewModelScope.launch {
+            try {
+                val frameIndices = downloadedFrames.value
+                if (frameIndices.isEmpty()) {
+                    exportResult.emit(EncodingResult.Error("No frames downloaded"))
+                    return@launch
+                }
+
+                val frameFiles = frameIndices.mapNotNull { index -> getFrameFile(context, index) }
+                if (frameFiles.isEmpty()) {
+                    exportResult.emit(EncodingResult.Error("No frame files found"))
+                    return@launch
+                }
+
+                val outputFileName = "${clip.name}_${System.currentTimeMillis()}.mp4"
+
+                val progressJob = launch {
+                    videoExportRepository.progress.collect { progress ->
+                        _exportProgress.value = progress
+                    }
+                }
+
+                videoExportRepository.exportVideo(frameFiles, outputFileName, fps).let { result ->
+                    progressJob.cancel()
+                    exportResult.emit(result)
+                }
+            } catch (e: Exception) {
+                LL.e("Export error: ${e.message}")
+                exportResult.emit(EncodingResult.Error("Export failed: ${e.message}", e))
+            } finally {
+                exportJob = null
+            }
+        }
+    }
+
+    fun cancelExport() {
+        exportJob?.cancel()
+        exportJob = null
+        videoExportRepository.cancelExport()
+        _exportProgress.value = 0f
+    }
+
     override fun onCleared() {
         super.onCleared()
-        // Cancel download when ViewModel is cleared
         downloadJob?.cancel()
+        exportJob?.cancel()
+        videoExportRepository.cancelExport()
     }
 }
