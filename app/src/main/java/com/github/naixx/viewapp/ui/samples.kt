@@ -54,7 +54,9 @@ val cameraSettings = CameraSettings(
         shutter = Shutter("1/640", 3.333, code = 66176, duration_ms = 100, cameraName = "1/640"),
         aperture = Aperture("8", -2.0),
         iso = ISO("100", 0.0)
-    )
+    ),
+    battery = 0.0,
+    focusPos = 0.0
 )
 val status = Status(
     running = true,

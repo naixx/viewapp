@@ -1,7 +1,6 @@
 package com.github.naixx.viewapp
 
-import android.app.PendingIntent
-import android.app.Service
+import android.app.*
 import android.content.Intent
 import android.os.Binder
 import androidx.core.app.*
@@ -10,7 +9,6 @@ import com.github.naixx.viewapp.network.generateLocalServer
 import com.github.naixx.viewapp.utils.Prefs
 import github.naixx.network.*
 import io.ktor.client.plugins.websocket.*
-import io.ktor.network.selector.SelectInterest.Companion.flags
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableSharedFlow
 import org.koin.android.ext.android.inject
@@ -18,12 +16,13 @@ import org.koin.android.ext.android.inject
 class WebSocketService : Service() {
 
     companion object {
+
         const val ACTION_STOP_SERVICE = "com.github.naixx.viewapp.STOP_SERVICE"
     }
 
     private val webSocketClient: WebSocketClient by inject()
     private var serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    val messages = MutableSharedFlow<String>(1)
+    val messages = MutableSharedFlow<BaseMessage>(1)
     private val storageProvider: StorageProvider by inject()
     val connectionState = webSocketClient.connectionState
 
@@ -59,7 +58,10 @@ class WebSocketService : Service() {
         val urls = Prefs.lastConnectedIp.toList() + generateLocalServer(this) + WIFI_URL
         serviceScope.launch {
             webSocketClient.startWebSocket(urls, ::onSessionCreated) {
-                LL.e(it)
+                LL.i(it)
+                launch {
+                    messages.emit(it)
+                }
             }
         }
         serviceScope.launch {
@@ -80,7 +82,8 @@ class WebSocketService : Service() {
     ) {
         session.sendSerialized(Session(storageProvider.session() ?: ""))
         session.sendSerialized(Get("camera"))
-        session.sendSerialized(Ping())
+        session.sendSerialized(Get("settings"))
+        session.sendSerialized(Get("battery"))
     }
 
     fun send(message: String) {
@@ -114,7 +117,7 @@ class WebSocketService : Service() {
         LL.e("onstart")
         startForegroundService()
         startWebSocketConnection()
-       // onStartCommand(intent, flags, startId)
+        // onStartCommand(intent, flags, startId)
     }
 
     override fun onDestroy() {

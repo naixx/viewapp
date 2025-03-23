@@ -119,6 +119,7 @@ class MainActivity : ComponentActivity() {
         startService(intent)
         bind()
     }
+
     fun stopService() {
         val stopIntent = Intent(this, WebSocketService::class.java).apply {
             action = ACTION_STOP_SERVICE
@@ -154,7 +155,7 @@ class MainActivity : ComponentActivity() {
             val service = (binder as WebSocketService.LocalBinder).getService()
             isBound.value = true
             service.messages.onEach {
-                flow.value += it
+                viewModel.onMessage(it)
             }.launchIn(lifecycleScope)
             service.connectionState.onEach {
                 viewModel.connectionState.value = it

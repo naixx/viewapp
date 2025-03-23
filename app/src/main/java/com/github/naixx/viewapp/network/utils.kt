@@ -18,5 +18,5 @@ fun generateLocalServer(c: Context): List<String> {
         (ipAddress shr 8 and 0xFF),     // Correct: 168
         (ipAddress shr 16 and 0xFF)     // Correct: 31
     )
-    return listOf("${ACCESS_POINT_URL}socket/address") + (1..254).map { "$base$it/socket/address" }
+    return listOf(ACCESS_POINT_URL) + (1..254).map { "$base$it/" }
 }

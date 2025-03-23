@@ -1,25 +1,20 @@
 package com.github.naixx.viewapp.ui
 
+import android.content.Context
 import androidx.lifecycle.*
 import com.github.naixx.compose.*
 import com.github.naixx.logger.LL
 import github.naixx.network.*
 import kotlinx.collections.immutable.*
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.forEach
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.sync.*
 import org.koin.core.component.*
 import org.koin.core.parameter.parametersOf
-import android.content.Context
 import java.io.File
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.cancelChildren
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
 import java.util.Collections
 
 class MainViewModel : ViewModel(), KoinComponent {
@@ -28,13 +23,13 @@ class MainViewModel : ViewModel(), KoinComponent {
     val clips = MutableStateFlow<ImmutableList<Clip>>(persistentListOf())
 
     // Maps clipName -> list of downloaded frame indices
-     val downloadedFrames = MutableStateFlow<Map<String, List<Int>>>(emptyMap())
+    val downloadedFrames = MutableStateFlow<Map<String, List<Int>>>(emptyMap())
 
     // Maps clipName -> current download progress (0.0 - 1.0)
-     val downloadProgress = MutableStateFlow<Map<String, Float>>(emptyMap())
+    val downloadProgress = MutableStateFlow<Map<String, Float>>(emptyMap())
 
     // Currently selected frame index for playback
-     val currentFrameIndex = MutableStateFlow<Int>(0)
+    val currentFrameIndex = MutableStateFlow<Int>(0)
 
     // Playback state
     val isPlaying = MutableStateFlow(false)
@@ -104,6 +99,31 @@ class MainViewModel : ViewModel(), KoinComponent {
         }
     }
 
+    val connectedMessage = MutableStateFlow<ConnectedMessage?>(null)
+    val settingsMessage = MutableStateFlow<SettingsMessage?>(null)
+    val batteryMessage = MutableStateFlow<Battery?>(null)
+
+    init{
+        connectionState.onEach {
+            if (it is ConnectionState.Disconnected) {
+                connectedMessage.value = null
+                settingsMessage.value = null
+                batteryMessage.value = null
+            }
+        }.launchIn(viewModelScope)
+    }
+
+
+    fun onMessage(message: BaseMessage) {
+//        LL.e(message)
+        when (message) {
+            is ConnectedMessage -> connectedMessage.value = message
+            is SettingsMessage  -> settingsMessage.value = message
+            is Battery          -> batteryMessage.value = message
+            else                -> Unit
+        }
+    }
+
     fun requestClips(connection: ConnectionState.Connected) {
         viewModelScope.launch {
             try {
@@ -126,7 +146,8 @@ class MainViewModel : ViewModel(), KoinComponent {
         if (isPlaying.value) return
         // Only block starting a new download if we're actively downloading already (not resuming)
         if (downloadJobs[clipName] != null && downloadProgress.value[clipName] != null &&
-            downloadProgress.value[clipName]!! > 0 && downloadProgress.value[clipName]!! < 1f) return
+            downloadProgress.value[clipName]!! > 0 && downloadProgress.value[clipName]!! < 1f
+        ) return
 
         val job = viewModelScope.launch {
             try {

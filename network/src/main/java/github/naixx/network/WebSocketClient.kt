@@ -54,11 +54,15 @@ class WebSocketClient(
                         delay(RECONNECT_DELAY_MS)
                     continue
                 }
-                foundServer.fromUrl?.let {
-                    storageProvider.lastSuccessfulAddress(it)
-                }
+
+
                 when (foundServer) {
-                    is Address                       -> actualConnect(foundServer, onCreate, onMessage)
+                    is Address                       -> {
+                        foundServer.fromUrl?.let {
+                            storageProvider.lastSuccessfulAddress(it)
+                        }
+                        actualConnect(foundServer, onCreate, onMessage)
+                    }
                     is AddressResponse.LoginRequired -> {
                         val api = get<ViewApi>(parameters = { parametersOf(foundServer.fromUrl) })
                         try {
@@ -111,8 +115,12 @@ class WebSocketClient(
                 }
             }
             while (isActive) {
-                val message = receiveDeserialized<BaseMessage>()
-                onMessage(message)
+                try {
+                    val message = receiveDeserialized<BaseMessage>()
+                    onMessage(message)
+                } catch (e: Exception) {
+                    println(e)
+                }
             }
         }
     }
