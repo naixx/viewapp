@@ -1,33 +1,15 @@
 package com.github.naixx.viewapp.ui
 
 import android.content.Context
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import com.github.naixx.compose.UiState
-import com.github.naixx.compose.catching
+import androidx.lifecycle.*
+import com.github.naixx.compose.*
 import com.github.naixx.logger.LL
-import com.github.naixx.viewapp.encoding.EncodingResult
-import com.github.naixx.viewapp.encoding.VideoExportRepository
-import github.naixx.network.Clip
-import github.naixx.network.ConnectionState
-import github.naixx.network.TimelapseClipInfo
-import github.naixx.network.ViewApi
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
-import org.koin.core.component.KoinComponent
-import org.koin.core.component.get
-import org.koin.core.component.inject
+import com.github.naixx.viewapp.encoding.*
+import github.naixx.network.*
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.sync.*
+import org.koin.core.component.*
 import org.koin.core.parameter.parametersOf
 import java.io.File
 import java.util.Collections
@@ -35,7 +17,6 @@ import java.util.Collections
 class TimelapseViewModel(private val clip: Clip) : ViewModel(), KoinComponent {
 
     val downloadedFrames: MutableStateFlow<List<Int>> = MutableStateFlow(emptyList())
-    val downloadProgress: MutableStateFlow<Float> = MutableStateFlow(0f)
     val currentFrameIndex: MutableStateFlow<Int> = MutableStateFlow(0)
     val isPlaying: MutableStateFlow<Boolean> = MutableStateFlow(false)
 
@@ -60,7 +41,7 @@ class TimelapseViewModel(private val clip: Clip) : ViewModel(), KoinComponent {
      * Checks for existing frames without starting download
      * Returns Pair(downloadedCount, totalFrames)
      */
-    suspend fun checkExistingFrames(context: Context, connectionState: ConnectionState?): Pair<Int, Int> {
+    suspend fun checkExistingFrames(context: Context): Pair<Int, Int> {
         return withContext(Dispatchers.IO) {
             val cacheDir = File(context.filesDir, "timelapses/${clip.name}")
             val downloadedIndices = mutableListOf<Int>()
@@ -79,12 +60,6 @@ class TimelapseViewModel(private val clip: Clip) : ViewModel(), KoinComponent {
             if (downloadedIndices.isNotEmpty()) {
                 downloadedFrames.value = downloadedIndices.sorted()
 
-                // Update progress only if we know the total frames
-                if (totalFrames > 0) {
-                    downloadProgress.value = if (downloadedIndices.size >= totalFrames) 1f
-                                           else downloadedIndices.size.toFloat() / totalFrames
-                }
-
                 // Set current frame to first frame if not already set
                 if (currentFrameIndex.value <= 0) {
                     setCurrentFrame(1)
@@ -98,11 +73,9 @@ class TimelapseViewModel(private val clip: Clip) : ViewModel(), KoinComponent {
     /**
      * Get information about the current clip
      */
-    suspend fun clipInfo(connectionState: ConnectionState?): UiState<TimelapseClipInfo?> = catching {
-        (connectionState as? ConnectionState.Connected)?.let { state ->
-            val viewApi: ViewApi = get<ViewApi> { parametersOf(state.address.fromUrl) }
-            viewApi.clipInfo(clip.name)
-        }
+    suspend fun clipInfo(state: ConnectionState.Connected): UiState<TimelapseClipInfo?> = catching {
+        val viewApi: ViewApi = get<ViewApi> { parametersOf(state.address.fromUrl) }
+        viewApi.clipInfo(clip.name)
     }
 
     /**
@@ -123,8 +96,6 @@ class TimelapseViewModel(private val clip: Clip) : ViewModel(), KoinComponent {
                     val info = viewApi.clipInfo(clip.name)
                     totalFrames = info.frames ?: return@let
 
-                    downloadProgress.value = 0f
-
                     val downloadedIndices = Collections.synchronizedList(mutableListOf<Int>())
                     val mutex = Mutex() // For synchronizing progress updates
 
@@ -139,7 +110,6 @@ class TimelapseViewModel(private val clip: Clip) : ViewModel(), KoinComponent {
                     // Update initial progress based on already downloaded files
                     if (downloadedIndices.isNotEmpty()) {
                         mutex.withLock {
-                            downloadProgress.value = downloadedIndices.size.toFloat() / totalFrames
                             downloadedFrames.value = downloadedIndices.toList()
                         }
                     }
@@ -149,7 +119,6 @@ class TimelapseViewModel(private val clip: Clip) : ViewModel(), KoinComponent {
 
                     // If everything is already downloaded, set progress to 100% and return
                     if (framesToDownload.isEmpty()) {
-                        downloadProgress.value = 1f
                         return@launch
                     }
 
@@ -161,8 +130,7 @@ class TimelapseViewModel(private val clip: Clip) : ViewModel(), KoinComponent {
                         // Check if download was canceled
                         if (!isActive) {
                             mutex.withLock {
-                                downloadProgress.value = if (downloadedIndices.isEmpty()) 0f
-                                                       else downloadedIndices.size.toFloat() / totalFrames
+                                downloadedFrames.value = downloadedIndices.toList()
                             }
                             return@launch
                         }
@@ -188,18 +156,13 @@ class TimelapseViewModel(private val clip: Clip) : ViewModel(), KoinComponent {
                         // Update progress atomically
                         mutex.withLock {
                             downloadedIndices.addAll(completedFrames)
-                            downloadProgress.value = downloadedIndices.size.toFloat() / totalFrames
                             downloadedFrames.value = downloadedIndices.toList()
                         }
-                    }
-
-                    mutex.withLock {
-                        downloadProgress.value = 1f
                     }
                 }
             } catch (e: Exception) {
                 LL.e("Download error: ${e.message}")
-                downloadProgress.value = 0f
+                downloadedFrames.value = emptyList()
             } finally {
                 // Remove reference to the job when done
                 downloadJob = null
@@ -213,7 +176,6 @@ class TimelapseViewModel(private val clip: Clip) : ViewModel(), KoinComponent {
     fun stopDownload() {
         downloadJob?.cancel()
         downloadJob = null
-        downloadProgress.value = 0f
         downloadedFrames.value = emptyList()
     }
 
@@ -265,7 +227,6 @@ class TimelapseViewModel(private val clip: Clip) : ViewModel(), KoinComponent {
             // Reset download state
             withContext(Dispatchers.Main) {
                 downloadedFrames.value = emptyList()
-                downloadProgress.value = 0f
             }
         }
     }

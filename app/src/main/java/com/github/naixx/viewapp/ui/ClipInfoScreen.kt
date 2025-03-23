@@ -24,6 +24,10 @@ import coil3.compose.AsyncImage
 import coil3.request.*
 import com.github.naixx.compose.*
 import com.github.naixx.viewapp.encoding.EncodingResult
+import com.github.naixx.viewapp.ui.components.AppBarWithBack
+import com.github.naixx.viewapp.ui.components.OnConnectedEffect
+import com.github.naixx.viewapp.ui.components.VButton
+import com.github.naixx.viewapp.ui.components.sampleClipInfo
 import com.github.naixx.viewapp.utils.activityViewModel
 import github.naixx.network.*
 import kotlinx.coroutines.*
@@ -43,14 +47,21 @@ class ClipInfoScreen(val clip: Clip) : Screen {
         var clipInfo: UiState<TimelapseClipInfo?> by remember { mutableStateOf(UiState.Loading) }
         val navigator = LocalNavigator.currentOrThrow
         val context = LocalContext.current
-        val downloadProgress by timelapseViewModel.downloadProgress.collectAsState()
         val downloadedFrames by timelapseViewModel.downloadedFrames.collectAsState()
         val currentFrameIndex by timelapseViewModel.currentFrameIndex.collectAsState()
         val isPlaying by timelapseViewModel.isPlaying.collectAsState()
         val exportProgress by timelapseViewModel.exportProgress.collectAsState()
 
         val frames = downloadedFrames
-        val progress = downloadProgress
+        val progress = remember(frames) {
+            if (clip.frames > 0 && frames.isNotEmpty()) {
+                frames.size.toFloat() / clip.frames
+            } else if (frames.isNotEmpty()) {
+                1f // If we don't know total frames but have some downloaded
+            } else {
+                0f
+            }
+        }
 
         val scope = rememberCoroutineScope()
         var cacheSize by remember { mutableStateOf<String?>(null) }
@@ -58,7 +69,7 @@ class ClipInfoScreen(val clip: Clip) : Screen {
 
         LaunchedEffect(Unit) {
             scope.launch(Dispatchers.IO) {
-                val existingFrames = timelapseViewModel.checkExistingFrames(context, conn)
+                val existingFrames = timelapseViewModel.checkExistingFrames(context)
                 if (existingFrames.first > 0 && existingFrames.second > 0) {
                     val size = timelapseViewModel.getCacheSize(context)
                     cacheSize = formatFileSize(size)
@@ -107,16 +118,12 @@ class ClipInfoScreen(val clip: Clip) : Screen {
                     is EncodingResult.Canceled -> {
                         Toast.makeText(context, "Export was canceled", Toast.LENGTH_LONG).show()
                     }
-
-                    else -> {
-                        Toast.makeText(context, "Unknown export result", Toast.LENGTH_LONG).show()
-                    }
                 }
             }
         }
 
         OnConnectedEffect(conn) {
-            clipInfo = timelapseViewModel.clipInfo(conn)
+            clipInfo = timelapseViewModel.clipInfo(it)
         }
 
         Column(
@@ -161,7 +168,7 @@ class ClipInfoScreen(val clip: Clip) : Screen {
                         Spacer(modifier = Modifier.height(8.dp))
                         val downloadedCount = frames.size
                         val totalFrames = clip.frames.takeIf { it > 0 }
-                            ?: if (progress > 0 && frames.isNotEmpty()) (frames.size / progress).toInt() else 0
+                            ?: if (frames.isNotEmpty()) frames.size else 0
 
                         if (totalFrames > 0) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {

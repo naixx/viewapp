@@ -1,4 +1,4 @@
-package com.github.naixx.viewapp.ui
+package com.github.naixx.viewapp.ui.components
 
 import github.naixx.network.Aperture
 import github.naixx.network.AutoSettings

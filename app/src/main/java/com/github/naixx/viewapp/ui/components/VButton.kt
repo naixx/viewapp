@@ -1,4 +1,4 @@
-package com.github.naixx.viewapp.ui
+package com.github.naixx.viewapp.ui.components
 
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size

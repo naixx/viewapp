@@ -22,6 +22,7 @@ import coil3.util.DebugLogger
 import com.github.naixx.logger.LL
 import com.github.naixx.viewapp.*
 import com.github.naixx.viewapp.WebSocketService.Companion.ACTION_STOP_SERVICE
+import com.github.naixx.viewapp.ui.components.LocalSuperNavigator
 import com.github.naixx.viewapp.ui.theme.ViewAppTheme
 import com.github.naixx.viewapp.utils.ClipMapper
 import github.naixx.network.*

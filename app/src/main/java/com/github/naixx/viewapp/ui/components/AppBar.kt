@@ -1,4 +1,4 @@
-package com.github.naixx.viewapp.ui
+package com.github.naixx.viewapp.ui.components
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack

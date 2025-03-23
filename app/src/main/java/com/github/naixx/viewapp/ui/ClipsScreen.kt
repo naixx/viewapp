@@ -9,6 +9,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import coil3.compose.AsyncImage
+import com.github.naixx.viewapp.ui.components.OnConnectedEffect
+import com.github.naixx.viewapp.ui.components.SuperNav
 import com.github.naixx.viewapp.utils.activityViewModel
 import github.naixx.network.Clip
 
