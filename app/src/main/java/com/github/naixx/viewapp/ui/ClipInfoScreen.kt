@@ -23,6 +23,8 @@ import com.github.naixx.logger.LL
 import com.github.naixx.viewapp.utils.activityViewModel
 import github.naixx.network.*
 import kotlinx.coroutines.*
+import org.koin.androidx.compose.koinViewModel
+import org.koin.core.parameter.parametersOf
 import java.time.*
 import java.time.format.DateTimeFormatter
 
@@ -31,29 +33,28 @@ class ClipInfoScreen(val clip: Clip) : Screen {
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     override fun Content() {
-        val viewModel = activityViewModel<MainViewModel>()
-        val conn by viewModel.connectionState.collectAsState()
+        val mainViewModel = activityViewModel<MainViewModel>()
+        val timelapseViewModel = koinViewModel<TimelapseViewModel>(parameters = { parametersOf(clip) })
+        val conn by mainViewModel.connectionState.collectAsState()
         var clipInfo: UiState<TimelapseClipInfo?> by remember { mutableStateOf(UiState.Loading) }
         val navigator = LocalNavigator.currentOrThrow
         val context = LocalContext.current
-        val downloadProgress by viewModel.downloadProgress.collectAsState()
-        val downloadedFrames by viewModel.downloadedFrames.collectAsState()
-        val currentFrameIndex by viewModel.currentFrameIndex.collectAsState()
-        val isPlaying by viewModel.isPlaying.collectAsState()
+        val downloadProgress by timelapseViewModel.downloadProgress.collectAsState()
+        val downloadedFrames by timelapseViewModel.downloadedFrames.collectAsState()
+        val currentFrameIndex by timelapseViewModel.currentFrameIndex.collectAsState()
+        val isPlaying by timelapseViewModel.isPlaying.collectAsState()
 
-        val frames = downloadedFrames[clip.name] ?: emptyList()
-        val progress = downloadProgress[clip.name] ?: 0f
+        val frames = downloadedFrames
+        val progress = downloadProgress
 
         val scope = rememberCoroutineScope()
-        LL.e("scope = " + scope)
         var cacheSize by remember { mutableStateOf<String?>(null) }
 
         LaunchedEffect(Unit) {
             scope.launch(Dispatchers.IO) {
-                // Check for existing frames and update progress without starting download
-                val existingFrames = viewModel.checkExistingFrames(clip.name, context, clip.frames.toInt())
+                val existingFrames = timelapseViewModel.checkExistingFrames(context, conn)
                 if (existingFrames.first > 0 && existingFrames.second > 0) {
-                    val size = viewModel.getCacheSize(clip.name, context)
+                    val size = timelapseViewModel.getCacheSize(context)
                     cacheSize = formatFileSize(size)
                 }
             }
@@ -61,16 +62,16 @@ class ClipInfoScreen(val clip: Clip) : Screen {
 
         LaunchedEffect(frames.size) {
             if (frames.isNotEmpty()) {
-                val size = viewModel.getCacheSize(clip.name, context)
+                val size = timelapseViewModel.getCacheSize(context)
                 cacheSize = formatFileSize(size)
             }
         }
 
         DisposableEffect(key1 = Unit) {
             onDispose {
-                viewModel.togglePlayback(false)
+                timelapseViewModel.togglePlayback(false)
                 if (progress > 0f && progress < 1f) {
-                    viewModel.stopDownload(clip.name)
+                    timelapseViewModel.stopDownload()
                 }
             }
         }
@@ -80,13 +81,13 @@ class ClipInfoScreen(val clip: Clip) : Screen {
                 while (isPlaying) {
                     delay(33)
                     val nextFrame = if (currentFrameIndex >= frames.size) 1 else currentFrameIndex + 1
-                    viewModel.setCurrentFrame(nextFrame)
+                    timelapseViewModel.setCurrentFrame(nextFrame)
                 }
             }
         }
 
         OnConnectedEffect(conn) {
-            clipInfo = viewModel.clipInfo(clip)
+            clipInfo = timelapseViewModel.clipInfo(conn)
         }
 
         Column(
@@ -107,7 +108,7 @@ class ClipInfoScreen(val clip: Clip) : Screen {
 
                 var currentPainter by remember { mutableStateOf<Painter?>(null) }
                 if (progress > 0f && frames.isNotEmpty() && currentFrameIndex > 0 && currentFrameIndex <= frames.size) {
-                    val frameFile = viewModel.getFrameFile(clip.name, currentFrameIndex, context)
+                    val frameFile = timelapseViewModel.getFrameFile(context, currentFrameIndex)
                     if (frameFile != null) {
                         AsyncImage(
                             model = ImageRequest.Builder(context)
@@ -189,7 +190,7 @@ class ClipInfoScreen(val clip: Clip) : Screen {
                     Slider(
                         value = currentFrameIndex.toFloat(),
                         onValueChange = {
-                            viewModel.setCurrentFrame(it.toInt().coerceIn(1, frames.size))
+                            timelapseViewModel.setCurrentFrame(it.toInt().coerceIn(1, frames.size))
                         },
                         valueRange = 1f..frames.size.toFloat(),
                         steps = if (frames.size > 2) frames.size - 2 else 0,
@@ -213,12 +214,12 @@ class ClipInfoScreen(val clip: Clip) : Screen {
             ) {
                 if (progress > 0f && progress < 1f) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (!viewModel.isDownloading(clip.name))
+                        if (!timelapseViewModel.isDownloading())
                             VButton(
                                 text = "Resume Download",
                                 imageVector = Icons.Default.PlayArrow
                             ) {
-                                viewModel.downloadFrames(clip.name, context)
+                                timelapseViewModel.downloadFrames(context, conn)
                             }
                         else
                             VButton(
@@ -227,26 +228,26 @@ class ClipInfoScreen(val clip: Clip) : Screen {
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = MaterialTheme.colorScheme.error
                                 )
-                            ) { viewModel.stopDownload(clip.name) }
+                            ) { timelapseViewModel.stopDownload() }
                     }
                 } else if (frames.isEmpty()) {
                     VButton(
                         text = "Download Frames",
                         imageVector = Icons.Default.Download
                     ) {
-                        viewModel.downloadFrames(clip.name, context)
+                        timelapseViewModel.downloadFrames(context, conn)
                     }
                 } else if (progress == 1f) {
                     VButton(
                         text = if (isPlaying) "Pause" else "Play",
                         imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow
-                    ) { viewModel.togglePlayback(!isPlaying) }
+                    ) { timelapseViewModel.togglePlayback(!isPlaying) }
 
                     Spacer(modifier = Modifier.width(16.dp))
 
                     VButton(
                         text = "Reset"
-                    ) { viewModel.setCurrentFrame(1) }
+                    ) { timelapseViewModel.setCurrentFrame(1) }
                 }
             }
 
@@ -294,7 +295,7 @@ class ClipInfoScreen(val clip: Clip) : Screen {
                                 containerColor = MaterialTheme.colorScheme.error
                             )
                         ) {
-                            viewModel.deleteCache(clip.name, context)
+                            timelapseViewModel.deleteCache(context)
                             cacheSize = null
                         }
                     }

@@ -610,10 +610,10 @@ data class Program(
     val highlightProtection: Boolean,
     val interval: String,
     val dayInterval: Double,
-    @SerialName("nightInterval") val nightInterval: Double,
+    val nightInterval: Double,
     val frames: Int,
     val destination: String,
-    @SerialName("nightLuminance") val nightLuminance: Double,
+    val nightLuminance: Double,
     val dayLuminance: Double,
     val isoMax: Double,
     val isoMin: Int,
@@ -797,8 +797,8 @@ data class Sunset(
 data class CameraSettings(
     val shutter: String,
     val aperture: String,
-    val battery: Double,
-    val focusPos: Double,
+    val battery: Double? = null,
+    val focusPos: Double? = null,
     val iso: String,
     val details: CameraDetails
 )

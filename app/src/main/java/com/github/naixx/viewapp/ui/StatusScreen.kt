@@ -25,10 +25,10 @@ class StatusScreen(
         val c = LocalContext.current as MainActivity
         val bound by c.isBound.collectAsState()
         LL.e(battery)
-        val str = when(val con = conn) {
-            is ConnectionState.Connected     -> con.address.address
+        val str = when (val con = conn) {
+            is ConnectionState.Connected -> con.address.address
             is ConnectionState.LoginRequired -> con.address.fromUrl
-            else-> con
+            else -> con
         }
 
         Column {
@@ -41,8 +41,14 @@ class StatusScreen(
                     c.stopService()
                 }
             connected?.let {
-                Text(it.model + settings?.let { " " + it.settings.battery.toInt() + "%" } + (battery?.let { ", VIEW battery " + it.percentage.toInt() + "%" }
-                    ?: ""))
+                val text = remember(it) {
+                    listOfNotNull(
+                        it.model.takeIf { it.isNotEmpty() },
+                        settings?.let { it.settings.battery?.toString() + "%" },
+                        battery?.let { "VIEW battery " + it.percentage.toInt() + "%" }
+                    ).joinToString()
+                }
+                Text(text)
             }
         }
     }
