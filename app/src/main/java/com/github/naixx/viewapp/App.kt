@@ -2,6 +2,7 @@ package com.github.naixx.viewapp
 
 import android.app.*
 import com.github.naixx.viewapp.di.encodingModule
+import github.naixx.db.dbModule
 import github.naixx.network.*
 import io.github.aakira.napier.*
 import org.koin.android.ext.koin.*
@@ -15,7 +16,7 @@ class App : Application() {
         startKoin {
             androidLogger()
             androidContext(this@App)
-            modules(networkModule, appModule, encodingModule)
+            modules(networkModule, appModule, encodingModule, dbModule)
         }
         createNotificationChannel()
     }

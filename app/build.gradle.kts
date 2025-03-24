@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    id("com.google.devtools.ksp") version "2.1.10-1.0.30"
 }
 
 android {
@@ -64,6 +65,7 @@ android {
 
 dependencies {
     implementation(project(":network"))
+    implementation(project(":db"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
@@ -75,7 +77,6 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.androidx.compose.lifecycle)
     implementation(libs.lifecycle.viewModelKtx)
-    implementation("org.jmdns:jmdns:3.6.0")
 
     implementation(libs.voyager.navigator)
     implementation(libs.voyager.transitions)
@@ -115,6 +116,12 @@ dependencies {
     implementation(libs.coil.network)
 
     implementation(libs.kotlinx.collections.immutable)
+
+    // Room
+    val roomVersion = "2.6.1"
+    implementation("androidx.room:room-runtime:$roomVersion")
+    implementation("androidx.room:room-ktx:$roomVersion")
+    ksp("androidx.room:room-compiler:$roomVersion")
 
     testImplementation(libs.robolectric)
     testImplementation("androidx.test:core-ktx:1.6.1")

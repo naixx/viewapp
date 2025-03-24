@@ -54,6 +54,8 @@ val networkModule = module {
             isLenient = true
 //            prettyPrint = true
             ignoreUnknownKeys = true
+            explicitNulls = false
+            coerceInputValues = true
         }
     }
     singleOf(::WebSocketClient)

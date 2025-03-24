@@ -1,10 +1,11 @@
-package com.github.naixx.viewapp
+package com.github.naixx.viewapp.ui
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.github.naixx.viewapp.BuildConfig
 
 @Composable
 fun LoginDialog(

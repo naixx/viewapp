@@ -568,23 +568,6 @@ data class TimelapseClipInfoMessage(
 
 }
 
-@Serializable
-data class TimelapseClipInfo(
-    val id: Int,
-    val name: String,
-    val date: String,
-    val program: Program,
-    val status: Status,
-    val logfile: String,
-    val cameras: Int,
-    val primary_camera: Int,
-    val thumbnail: String? = null,
-    val frames: Int?,
-    val path: String? = null,
-    val cameraEv: Double? = null,
-    val minutesUntilStart: Int? = null
-)
-
 open class DynamicListSerializer<T>(val baseSer: KSerializer<T>) : KSerializer<List<T>> {
 
     override val descriptor = ListSerializer(baseSer).descriptor

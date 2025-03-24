@@ -1,13 +1,19 @@
 package com.github.naixx.viewapp.ui
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Timelapse
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.tab.*
+import coil3.compose.AsyncImagePainter.State.Empty.painter
+import com.github.naixx.compose.painter
 import com.github.naixx.viewapp.R
 import com.github.naixx.viewapp.ui.theme.ViewAppTheme
 
@@ -31,7 +37,7 @@ fun MainScreen(
     TabNavigator(tabs.first()) {
         Scaffold(
             bottomBar = {
-                NavigationBar {
+                NavigationBar(Modifier.height(60.dp), windowInsets = WindowInsets(0,8,0,0)) {
                     tabs.forEach { tab ->
                         TabNavigationItem(tab)
                     }
@@ -50,7 +56,9 @@ fun RowScope.TabNavigationItem(tab: Tab) {
     val tabNavigator = LocalTabNavigator.current
 
     NavigationBarItem(
-        selected = tabNavigator.current == tab,
+        alwaysShowLabel = false,
+        label = { Text(tab.options.title) },
+        selected = tabNavigator.current.key == tab.key,
         onClick = { tabNavigator.current = tab },
         icon = { Icon(painter = tab.options.icon!!, contentDescription = tab.options.title) }
     )
@@ -65,7 +73,7 @@ private data class StatusTab(
         get() = TabOptions(
             index = 0u,
             title = "Status",
-            icon = painterResource(id = R.drawable.ic_status)
+            icon = Icons.Default.Timelapse.painter
         )
 
     @Composable
@@ -81,7 +89,7 @@ private class ClipsTab() : Tab {
         get() = TabOptions(
             index = 1u,
             title = "Clips",
-            icon = painterResource(id = R.drawable.ic_clips)
+            icon = Icons.Default.VideoLibrary.painter
         )
 
     @Composable

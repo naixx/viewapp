@@ -40,6 +40,8 @@ dependencies {
     implementation(libs.ktor.client.okhttp)
     implementation(libs.ktor.serialization.kotlinx.json)
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+    
+    compileOnly("androidx.room:room-common:2.6.1")
 
     testImplementation(libs.jetbrains.kotlin.test.junit)
     testImplementation(libs.mockk)

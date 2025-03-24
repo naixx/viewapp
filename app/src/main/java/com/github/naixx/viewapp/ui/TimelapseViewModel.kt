@@ -5,6 +5,9 @@ import androidx.lifecycle.*
 import com.github.naixx.compose.*
 import com.github.naixx.logger.LL
 import com.github.naixx.viewapp.encoding.*
+import github.naixx.db.TimelapseClipInfoDao
+import github.naixx.network.Clip
+import github.naixx.network.TimelapseClipInfo
 import github.naixx.network.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -29,6 +32,15 @@ class TimelapseViewModel(private val clip: Clip) : ViewModel(), KoinComponent {
     private var exportJob: Job? = null
     private var totalFrames: Int = clip.frames
     private val videoExportRepository: VideoExportRepository by inject()
+    private val timelapseClipInfoDao: TimelapseClipInfoDao by inject()
+
+    val clipInfo: StateFlow<TimelapseClipInfo?> = timelapseClipInfoDao
+        .getTimelapseClipInfo(clip.name)
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = null
+        )
 
     /**
      * Returns whether frames are currently being downloaded
@@ -75,7 +87,14 @@ class TimelapseViewModel(private val clip: Clip) : ViewModel(), KoinComponent {
      */
     suspend fun clipInfo(state: ConnectionState.Connected): UiState<TimelapseClipInfo?> = catching {
         val viewApi: ViewApi = get<ViewApi> { parametersOf(state.address.fromUrl) }
-        viewApi.clipInfo(clip.name)
+        val info = viewApi.clipInfo(clip.name)
+
+        // Store the fetched info in the database
+        viewModelScope.launch {
+            timelapseClipInfoDao.insertTimelapseClipInfo(listOf(info))
+        }
+
+        info
     }
 
     /**
@@ -94,6 +113,10 @@ class TimelapseViewModel(private val clip: Clip) : ViewModel(), KoinComponent {
                 (connectionState as? ConnectionState.Connected)?.let { state ->
                     val viewApi: ViewApi = get<ViewApi> { parametersOf(state.address.fromUrl) }
                     val info = viewApi.clipInfo(clip.name)
+
+                    // Store the fetched info in the database
+                    timelapseClipInfoDao.insertTimelapseClipInfo(listOf(info))
+
                     totalFrames = info.frames ?: return@let
 
                     val downloadedIndices = Collections.synchronizedList(mutableListOf<Int>())

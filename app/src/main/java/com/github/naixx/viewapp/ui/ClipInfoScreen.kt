@@ -29,7 +29,9 @@ import com.github.naixx.viewapp.ui.components.OnConnectedEffect
 import com.github.naixx.viewapp.ui.components.VButton
 import com.github.naixx.viewapp.ui.components.sampleClipInfo
 import com.github.naixx.viewapp.utils.activityViewModel
-import github.naixx.network.*
+import github.naixx.network.Clip
+import github.naixx.network.ConnectionState
+import github.naixx.network.TimelapseClipInfo
 import kotlinx.coroutines.*
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
@@ -44,7 +46,7 @@ class ClipInfoScreen(val clip: Clip) : Screen {
         val mainViewModel = activityViewModel<MainViewModel>()
         val timelapseViewModel = koinViewModel<TimelapseViewModel>(parameters = { parametersOf(clip) })
         val conn by mainViewModel.connectionState.collectAsState()
-        var clipInfo: UiState<TimelapseClipInfo?> by remember { mutableStateOf(UiState.Loading) }
+        val storedClipInfo by timelapseViewModel.clipInfo.collectAsState()
         val navigator = LocalNavigator.currentOrThrow
         val context = LocalContext.current
         val downloadedFrames by timelapseViewModel.downloadedFrames.collectAsState()
@@ -123,7 +125,7 @@ class ClipInfoScreen(val clip: Clip) : Screen {
         }
 
         OnConnectedEffect(conn) {
-            clipInfo = timelapseViewModel.clipInfo(it)
+            timelapseViewModel.clipInfo(it)
         }
 
         Column(
@@ -167,7 +169,7 @@ class ClipInfoScreen(val clip: Clip) : Screen {
                         CircularProgressIndicator(progress = { progress })
                         Spacer(modifier = Modifier.height(8.dp))
                         val downloadedCount = frames.size
-                        val totalFrames = clip.frames.takeIf { it > 0 }
+                        val totalFrames = (storedClipInfo?.frames ?: clip.frames).takeIf { it > 0 }
                             ?: if (frames.isNotEmpty()) frames.size else 0
 
                         if (totalFrames > 0) {
@@ -356,16 +358,16 @@ class ClipInfoScreen(val clip: Clip) : Screen {
             Spacer(modifier = Modifier.height(16.dp))
 
             // Clip info card
-            clipInfo.Render({
+            if (storedClipInfo != null) {
+                InfoView(storedClipInfo!!)
+            } else {
                 Box(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("Loading clip info...")
-                }
-            }) {
-                it?.let { info ->
-                    InfoView(info)
+                    CircularProgressIndicator()
                 }
             }
 
