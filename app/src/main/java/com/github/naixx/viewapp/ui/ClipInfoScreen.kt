@@ -22,16 +22,10 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.*
 import coil3.compose.AsyncImage
 import coil3.request.*
-import com.github.naixx.compose.*
 import com.github.naixx.viewapp.encoding.EncodingResult
-import com.github.naixx.viewapp.ui.components.AppBarWithBack
-import com.github.naixx.viewapp.ui.components.OnConnectedEffect
-import com.github.naixx.viewapp.ui.components.VButton
-import com.github.naixx.viewapp.ui.components.sampleClipInfo
+import com.github.naixx.viewapp.ui.components.*
 import com.github.naixx.viewapp.utils.activityViewModel
-import github.naixx.network.Clip
-import github.naixx.network.ConnectionState
-import github.naixx.network.TimelapseClipInfo
+import github.naixx.network.*
 import kotlinx.coroutines.*
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
@@ -133,231 +127,61 @@ class ClipInfoScreen(val clip: Clip) : Screen {
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
         ) {
-
-            // Timelapse player
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(160f / 106f)
-                    .background(Color.Black),
-                contentAlignment = Alignment.Center
-            ) {
-
-                var currentPainter by remember { mutableStateOf<Painter?>(null) }
-                if (progress > 0f && frames.isNotEmpty() && currentFrameIndex > 0 && currentFrameIndex <= frames.size) {
-                    val frameFile = timelapseViewModel.getFrameFile(context, currentFrameIndex)
-                    if (frameFile != null) {
-                        AsyncImage(
-                            model = ImageRequest.Builder(context)
-                                .data(frameFile)
-                                .crossfade(false)
-                                .build(),
-                            contentDescription = "Frame $currentFrameIndex",
-                            placeholder = currentPainter,
-                            onSuccess = { painter ->
-                                currentPainter = painter.painter
-                            },
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    }
-                }
-                if (progress > 0f && progress < 1f) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        CircularProgressIndicator(progress = { progress })
-                        Spacer(modifier = Modifier.height(8.dp))
-                        val downloadedCount = frames.size
-                        val totalFrames = (storedClipInfo?.frames ?: clip.frames).takeIf { it > 0 }
-                            ?: if (frames.isNotEmpty()) frames.size else 0
-
-                        if (totalFrames > 0) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    text = "Downloaded $downloadedCount of $totalFrames frames (${(progress * 100).toInt()}%)",
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                            }
-                        } else {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    text = "Downloaded ${frames.size} frames (${(progress * 100).toInt()}%)",
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                            }
-                        }
-                    }
-                } else if (progress < 1f) {
-                    Text(
-                        text = "Press Download to begin",
-                        color = Color.White
-                    )
-                }
-
-                AppBarWithBack(
-                    title = clip.name,
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
-                    onBackClick = { navigator.pop() },
-                    modifier = Modifier.align(Alignment.TopStart)
-                )
-            }
-
-
+            TimelapsePlayer(
+                frames = frames,
+                progress = progress,
+                currentFrameIndex = currentFrameIndex,
+                context = context,
+                title = clip.name,
+                onBackClick = { navigator.pop() },
+                getFrameFile = { index -> timelapseViewModel.getFrameFile(context, index) }
+            )
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Player controls
             if (frames.isNotEmpty()) {
-                val fps = 30 // Default framerate for estimation
-                val totalDurationSecs = frames.size / fps
-                val currentTimeSecs = currentFrameIndex / fps
-
-                val totalTimeFormatted = formatTime(totalDurationSecs)
-                val currentTimeFormatted = formatTime(currentTimeSecs)
-
-                Text(
-                    text = "Frame: $currentFrameIndex of ${frames.size}",
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    textAlign = TextAlign.Center
-                )
-
-                Text(
-                    text = "Time: $currentTimeFormatted / $totalTimeFormatted at ${fps}fps",
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    textAlign = TextAlign.Center
-                )
+                PlayerTimeInfo(frames.size, currentFrameIndex)
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "1",
-                        modifier = Modifier.padding(end = 8.dp)
-                    )
-
-                    Slider(
-                        value = currentFrameIndex.toFloat(),
-                        onValueChange = {
-                            timelapseViewModel.setCurrentFrame(it.toInt().coerceIn(1, frames.size))
-                        },
-                        valueRange = 1f..frames.size.toFloat(),
-                        steps = if (frames.size > 2) frames.size - 2 else 0,
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    Text(
-                        text = "${frames.size}",
-                        modifier = Modifier.padding(start = 8.dp)
-                    )
-                }
+                PlayerSeekBar(
+                    currentFrameIndex = currentFrameIndex,
+                    framesCount = frames.size,
+                    onFrameSelected = { timelapseViewModel.setCurrentFrame(it) }
+                )
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Playback controls
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (progress > 0f && progress < 1f) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (!timelapseViewModel.isDownloading())
-                            VButton(
-                                text = "Resume Download",
-                                imageVector = Icons.Default.PlayArrow
-                            ) {
-                                timelapseViewModel.downloadFrames(context, conn)
-                            }
-                        else
-                            VButton(
-                                text = "Cancel",
-                                imageVector = Icons.Default.Close,
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.error
-                                )
-                            ) { timelapseViewModel.stopDownload() }
-                    }
-                } else if (frames.isEmpty()) {
-                    VButton(
-                        text = "Download Frames",
-                        imageVector = Icons.Default.Download
-                    ) {
-                        timelapseViewModel.downloadFrames(context, conn)
-                    }
-                } else if (progress == 1f) {
-                    VButton(
-                        text = if (isPlaying) "Pause" else "Play",
-                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow
-                    ) { timelapseViewModel.togglePlayback(!isPlaying) }
-
-                    Spacer(modifier = Modifier.width(16.dp))
-
-                    VButton(
-                        text = "Reset"
-                    ) { timelapseViewModel.setCurrentFrame(1) }
-                }
-            }
+            PlayerControls(
+                progress = progress,
+                frames = frames,
+                isPlaying = isPlaying,
+                isDownloading = timelapseViewModel.isDownloading(),
+                onPlayPause = { timelapseViewModel.togglePlayback(!isPlaying) },
+                onReset = { timelapseViewModel.setCurrentFrame(1) },
+                onDownload = { timelapseViewModel.downloadFrames(context, conn) },
+                onCancelDownload = { timelapseViewModel.stopDownload() }
+            )
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Export Video button
             if (frames.isNotEmpty()) {
-                Spacer(modifier = Modifier.width(16.dp))
-                Row(modifier = Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-
-                    if (exportProgress > 0f && exportProgress < 1f) {
-                        // Show export progress
-
-                        CircularProgressIndicator(progress = { exportProgress })
-                        Spacer(modifier = Modifier.size(4.dp))
-
-                            Text(
-                                text = "Exporting: ${(exportProgress * 100).toInt()}%",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-
-                        Spacer(modifier = Modifier.size(4.dp))
-                        VButton(
-                            text = "Cancel",
-                            imageVector = Icons.Default.Close,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.error
-                            )
-                        ) {
-                            timelapseViewModel.cancelExport()
-                        }
-                    } else {
-                        VButton(
-                            text = "Export Video",
-                            imageVector = Icons.Default.VideoLibrary
-                        ) {
-                            timelapseViewModel.exportVideo(context)
-                        }
-                        Spacer(modifier = Modifier.size(4.dp))
-                        if (lastExportedUri != null) {
-                            VButton(
-                                text = "Open Video",
-                                imageVector = Icons.Outlined.OpenInNew
-                            ) {
-                                val intent = Intent(Intent.ACTION_VIEW)
-                                intent.setDataAndType(lastExportedUri, "video/mp4")
-                                context.startActivity(intent)
-                            }
-                        }
+                ExportControls(
+                    exportProgress = exportProgress,
+                    lastExportedUri = lastExportedUri,
+                    onExport = { timelapseViewModel.exportVideo(context) },
+                    onCancelExport = { timelapseViewModel.cancelExport() },
+                    onOpenVideo = { uri ->
+                        val intent = Intent(Intent.ACTION_VIEW)
+                        intent.setDataAndType(uri, "video/mp4")
+                        context.startActivity(intent)
                     }
-                }
+                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Clip info card
             if (storedClipInfo != null) {
                 InfoView(storedClipInfo!!)
             } else {
@@ -371,40 +195,287 @@ class ClipInfoScreen(val clip: Clip) : Screen {
                 }
             }
 
-            // Cache Management Card
             if (frames.isNotEmpty() && progress == 1f) {
                 Spacer(modifier = Modifier.height(16.dp))
-                Card(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-
-                        Text(
-                            text = cacheSize?.let { "Cache size: $it" } ?: "Calculating cache size...",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        VButton(
-                            text = "Delete Cache",
-                            imageVector = Icons.Default.Delete,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.error
-                            )
-                        ) {
-                            timelapseViewModel.deleteCache(context)
-                            cacheSize = null
-                        }
+                CacheManagementCard(
+                    cacheSize = cacheSize,
+                    onDeleteCache = {
+                        timelapseViewModel.deleteCache(context)
+                        cacheSize = null
                     }
-                }
+                )
                 Spacer(modifier = Modifier.height(16.dp))
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TimelapsePlayer(
+    frames: List<Int>,
+    progress: Float,
+    currentFrameIndex: Int,
+    context: android.content.Context,
+    title: String,
+    onBackClick: () -> Unit,
+    getFrameFile: (Int) -> java.io.File?
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(160f / 106f)
+            .background(Color.Black),
+        contentAlignment = Alignment.Center
+    ) {
+        var currentPainter by remember { mutableStateOf<Painter?>(null) }
+
+        if (progress > 0f && frames.isNotEmpty() && currentFrameIndex > 0 && currentFrameIndex <= frames.size) {
+            val frameFile = getFrameFile(currentFrameIndex)
+            if (frameFile != null) {
+                AsyncImage(
+                    model = ImageRequest.Builder(context)
+                        .data(frameFile)
+                        .crossfade(false)
+                        .build(),
+                    contentDescription = "Frame $currentFrameIndex",
+                    placeholder = currentPainter,
+                    onSuccess = { painter ->
+                        currentPainter = painter.painter
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+        }
+
+        if (progress > 0f && progress < 1f) {
+            DownloadProgressOverlay(progress, frames.size)
+        } else if (progress < 1f) {
+            Text(
+                text = "Press Download to begin",
+                color = Color.White
+            )
+        }
+
+        AppBarWithBack(
+            title = title,
+            colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
+            onBackClick = onBackClick,
+            modifier = Modifier.align(Alignment.TopStart)
+        )
+    }
+}
+
+@Composable
+fun DownloadProgressOverlay(progress: Float, downloadedCount: Int) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        CircularProgressIndicator(progress = { progress })
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = "Downloaded $downloadedCount frames (${(progress * 100).toInt()}%)",
+            style = MaterialTheme.typography.bodyMedium
+        )
+    }
+}
+
+@Composable
+fun PlayerTimeInfo(framesCount: Int, currentFrameIndex: Int) {
+    val fps = 30
+    val totalDurationSecs = framesCount / fps
+    val currentTimeSecs = currentFrameIndex / fps
+
+    val totalTimeFormatted = formatTime(totalDurationSecs)
+    val currentTimeFormatted = formatTime(currentTimeSecs)
+
+    Text(
+        text = "Frame: $currentFrameIndex of $framesCount",
+        style = MaterialTheme.typography.bodyLarge,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        textAlign = TextAlign.Center
+    )
+
+    Text(
+        text = "Time: $currentTimeFormatted / $totalTimeFormatted at ${fps}fps",
+        style = MaterialTheme.typography.bodyMedium,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        textAlign = TextAlign.Center
+    )
+}
+
+@Composable
+fun PlayerSeekBar(
+    currentFrameIndex: Int,
+    framesCount: Int,
+    onFrameSelected: (Int) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "1",
+            modifier = Modifier.padding(end = 8.dp)
+        )
+
+        Slider(
+            value = currentFrameIndex.toFloat(),
+            onValueChange = {
+                onFrameSelected(it.toInt().coerceIn(1, framesCount))
+            },
+            valueRange = 1f..framesCount.toFloat(),
+            steps = if (framesCount > 2) framesCount - 2 else 0,
+            modifier = Modifier.weight(1f)
+        )
+
+        Text(
+            text = "$framesCount",
+            modifier = Modifier.padding(start = 8.dp)
+        )
+    }
+}
+
+@Composable
+fun PlayerControls(
+    progress: Float,
+    frames: List<Int>,
+    isPlaying: Boolean,
+    isDownloading: Boolean,
+    onPlayPause: () -> Unit,
+    onReset: () -> Unit,
+    onDownload: () -> Unit,
+    onCancelDownload: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (progress > 0f && progress < 1f) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (!isDownloading)
+                    VButton(
+                        text = "Resume Download",
+                        imageVector = Icons.Default.PlayArrow
+                    ) {
+                        onDownload()
+                    }
+                else
+                    VButton(
+                        text = "Cancel",
+                        imageVector = Icons.Default.Close,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error
+                        )
+                    ) { onCancelDownload() }
+            }
+        } else if (frames.isEmpty()) {
+            VButton(
+                text = "Download Frames",
+                imageVector = Icons.Default.Download
+            ) {
+                onDownload()
+            }
+        } else if (progress == 1f) {
+            VButton(
+                text = if (isPlaying) "Pause" else "Play",
+                imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow
+            ) { onPlayPause() }
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            VButton(
+                text = "Reset"
+            ) { onReset() }
+        }
+    }
+}
+
+@Composable
+fun ExportControls(
+    exportProgress: Float,
+    lastExportedUri: Uri?,
+    onExport: () -> Unit,
+    onCancelExport: () -> Unit,
+    onOpenVideo: (Uri) -> Unit
+) {
+    Row(
+        modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        if (exportProgress > 0f && exportProgress < 1f) {
+            CircularProgressIndicator(progress = { exportProgress })
+            Spacer(modifier = Modifier.size(4.dp))
+
+            Text(
+                text = "Exporting: ${(exportProgress * 100).toInt()}%",
+                style = MaterialTheme.typography.bodyMedium
+            )
+
+            Spacer(modifier = Modifier.size(4.dp))
+            VButton(
+                text = "Cancel",
+                imageVector = Icons.Default.Close,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error
+                )
+            ) {
+                onCancelExport()
+            }
+        } else {
+            VButton(
+                text = "Export Video",
+                imageVector = Icons.Default.VideoLibrary
+            ) {
+                onExport()
+            }
+            Spacer(modifier = Modifier.size(4.dp))
+            if (lastExportedUri != null) {
+                VButton(
+                    text = "Open Video",
+                    imageVector = Icons.Outlined.OpenInNew
+                ) {
+                    onOpenVideo(lastExportedUri)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CacheManagementCard(
+    cacheSize: String?,
+    onDeleteCache: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = cacheSize?.let { "Cache size: $it" } ?: "Calculating cache size...",
+                style = MaterialTheme.typography.bodyMedium
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            VButton(
+                text = "Delete Cache",
+                imageVector = Icons.Default.Delete,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error
+                )
+            ) {
+                onDeleteCache()
             }
         }
     }
@@ -507,10 +578,109 @@ private fun formatTime(seconds: Int): String {
     }
 }
 
-@Preview(showSystemUi = true)
+@Preview
 @Composable
 fun InfoViewPreview() {
     MaterialTheme(darkColorScheme()) {
         InfoView(sampleClipInfo)
+    }
+}
+
+@Preview
+@Composable
+fun PlayerTimeInfoPreview() {
+    MaterialTheme(darkColorScheme()) {
+        Surface {
+            PlayerTimeInfo(framesCount = 120, currentFrameIndex = 45)
+        }
+    }
+}
+
+@Preview
+@Composable
+fun PlayerSeekBarPreview() {
+    MaterialTheme(darkColorScheme()) {
+        Surface {
+            PlayerSeekBar(
+                currentFrameIndex = 45,
+                framesCount = 120,
+                onFrameSelected = {}
+            )
+        }
+    }
+}
+
+@Preview
+@Composable
+fun PlayerControlsPreview() {
+    MaterialTheme(darkColorScheme()) {
+        Column {
+            PlayerControls(
+                progress = 0.5f,
+                frames = List(50) { it },
+                isPlaying = false,
+                isDownloading = true,
+                onPlayPause = {},
+                onReset = {},
+                onDownload = {},
+                onCancelDownload = {}
+            )
+            PlayerControls(
+                progress = 0.0f,
+                frames = List(50) { it },
+                isPlaying = false,
+                isDownloading = true,
+                onPlayPause = {},
+                onReset = {},
+                onDownload = {},
+                onCancelDownload = {}
+            )
+            PlayerControls(
+                progress = 0.0f,
+                frames = listOf(),
+                isPlaying = false,
+                isDownloading = true,
+                onPlayPause = {},
+                onReset = {},
+                onDownload = {},
+                onCancelDownload = {}
+            )
+        }
+    }
+}
+
+@Preview
+@Composable
+fun ExportControlsPreview() {
+    MaterialTheme(darkColorScheme()) {
+        Column {
+            ExportControls(
+                exportProgress = 0.35f,
+                lastExportedUri = null,
+                onExport = {},
+                onCancelExport = {},
+                onOpenVideo = {}
+            )
+            ExportControls(
+                exportProgress = 0.0f,
+                lastExportedUri = null,
+                onExport = {},
+                onCancelExport = {},
+                onOpenVideo = {}
+            )
+        }
+    }
+}
+
+@Preview
+@Composable
+fun CacheManagementCardPreview() {
+    MaterialTheme(darkColorScheme()) {
+        Surface {
+            CacheManagementCard(
+                cacheSize = "15.42 MB",
+                onDeleteCache = {}
+            )
+        }
     }
 }

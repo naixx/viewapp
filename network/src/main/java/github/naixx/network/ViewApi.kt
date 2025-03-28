@@ -7,18 +7,17 @@ import io.ktor.client.call.body
 import io.ktor.client.request.get
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
-import kotlinx.serialization.*
+import kotlinx.serialization.Serializable
 
 @Serializable
 data class Auth(val session: String)
 
+interface OriginUrl {
+    var fromUrl: String?
+}
+
 @Serializable(with = AddressResponseSerializer::class)
-sealed class AddressResponse() : AddressResponse.Url {
-
-    interface Url {
-
-        var fromUrl: String?
-    }
+sealed class AddressResponse() : OriginUrl {
 
     @Serializable
     data class Address(val address: String, override var fromUrl: String? = null) : AddressResponse()
