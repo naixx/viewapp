@@ -3,6 +3,7 @@ package com.github.naixx.viewapp.ui
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -11,6 +12,7 @@ import androidx.compose.material.icons.outlined.OpenInNew
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.platform.LocalContext
@@ -125,6 +127,7 @@ class ClipInfoScreen(val clip: Clip) : Screen {
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .animateContentSize()
                 .verticalScroll(rememberScrollState())
         ) {
             TimelapsePlayer(
@@ -469,7 +472,7 @@ fun CacheManagementCard(
             Spacer(modifier = Modifier.height(8.dp))
 
             VButton(
-                text = "Delete Cache",
+                text = "Delete Cache from Smartphone",
                 imageVector = Icons.Default.Delete,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.error

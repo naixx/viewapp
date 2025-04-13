@@ -56,6 +56,7 @@ class WebSocketService : Service() {
         if (!serviceScope.isActive)
             serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
         val urls = Prefs.lastConnectedIp.toList() + generateLocalServer(this) + WIFI_URL
+        LL.e(urls.joinToString("\n"))
         serviceScope.launch {
             webSocketClient.startWebSocket(urls, ::onSessionCreated) {
                 LL.i(it)

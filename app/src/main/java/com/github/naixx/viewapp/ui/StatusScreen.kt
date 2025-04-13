@@ -34,7 +34,7 @@ class StatusScreen(
 
         Column {
             if (!bound)
-                VButton("Start $str") {
+                VButton("Start") {
                     c.startService()
                 }
             else
@@ -42,13 +42,13 @@ class StatusScreen(
                     c.stopService()
                 }
             connected?.let {
-                val text = remember(it) {
+                val text =
                     listOfNotNull(
                         it.model.takeIf { it.isNotEmpty() },
                         settings?.let { it.settings.battery?.toString() + "%" },
                         battery?.let { "VIEW battery " + it.percentage.toInt() + "%" }
                     ).joinToString()
-                }
+
                 Text(text)
             }
         }
