@@ -1,7 +1,7 @@
 package github.naixx.network
 
+import github.naixx.network.internal.DynamicListSerializer
 import kotlinx.serialization.*
-import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.encoding.*
 import kotlinx.serialization.json.*
@@ -13,18 +13,22 @@ sealed class BaseMessage {
 }
 
 @Serializable
-abstract class Message(override val type: String) : BaseMessage() {
+abstract class OutMessage(override val type: String) : BaseMessage() {
 }
 
 @Serializable
-class Ping() : Message("ping")
+class Ping() : OutMessage("ping")
 
 @Serializable
-class RequestClips() : Message("timelapse-clips")
+class RequestClips() : OutMessage("timelapse-clips")
 
 @Serializable
 @SerialName("pong")
 data class Pong(override val type: String) : BaseMessage()
+
+@Serializable
+@SerialName("intervalometerError")
+data class IntervalometerError(override val type: String) : BaseMessage()
 
 @Serializable
 @SerialName("battery")
@@ -35,13 +39,29 @@ data class Battery(val percentage: Float, val charging: Boolean, override val ty
 data class NoDevice(override val type: String) : BaseMessage()
 
 @Serializable
-data class Get(val key: String) : Message("get")
+data class Get(val key: String) : OutMessage("get")
 
 @Serializable
-data class Session(val session: String) : Message("auth")
+data class Session(val session: String) : OutMessage("auth")
 
 @Serializable
-data class UnknownMessage(val rawString: String) : Message("unknown")
+data class UnknownMessage(val rawString: String) : OutMessage("unknown")
+
+//timelapse messages
+@Serializable
+@SerialName("thumbnail")
+data class Thumbnail(
+    val imageType: String,
+    val jpeg: String,
+    val time: String, //TODO use datetime
+    override val type: String
+) : BaseMessage()
+
+@Serializable
+@SerialName("histogram")
+data class Histogram(
+    val histogram: List<Int>, override val type: String
+) : BaseMessage()
 
 @Serializable
 @SerialName("camera")
@@ -105,32 +125,7 @@ data class IntervalometerStatus(
     val status: Status,
     val ack: String? = null,
     override val type: String
-) : BaseMessage() {
-
-    @Serializable
-    data class Status(
-        val running: Boolean,
-        val frames: Int,
-        val framesRemaining: Int,
-        val rampRate: Int,
-        val intervalMs: Int,
-        val message: String,
-        val rampEv: Double?,
-        val autoSettings: AutoSettings,
-        val exposure: Exposure
-    )
-
-    @Serializable
-    data class AutoSettings(
-        val paddingTimeMs: Int
-    )
-
-    @Serializable
-    data class Exposure(
-        val status: Map<String, String>,
-        val config: Map<String, String>
-    )
-}
+) : BaseMessage()
 
 @Serializable
 @SerialName("motion")
@@ -246,11 +241,24 @@ val json = """
           },
           "exposure": {
             "status": {
-              "rampEv": null,
-              "highlights": null,
-              "rate": null,
-              "direction": null,
-              "highlightProtection": 0
+                "rampEv": 2.0000000000000004,
+                "highlights": null,
+                "rate": 0,
+                "direction": 0,
+                "highlightProtection": 0,
+                "intervalSeconds": 59.987,
+                "nightRatio": 0.7272727272727273,
+                "nightRefEv": -8.354545454545455,
+                "dayRefEv": -7.054545454545455,
+                "fixedRefEv": -8,
+                "manualOffsetEv": 0,
+                "evMean": -8,
+                "evSlope": 0,
+                "targetEv": 2.0000000000000004,
+                "pastError": 0,
+                "pComponent": 0,
+                "iComponent": 0,
+                "dComponent": 0
             },
             "config": {
               "sunrise": {
@@ -568,22 +576,6 @@ data class TimelapseClipInfoMessage(
 
 }
 
-open class DynamicListSerializer<T>(val baseSer: KSerializer<T>) : KSerializer<List<T>> {
-
-    override val descriptor = ListSerializer(baseSer).descriptor
-
-    override fun deserialize(decoder: Decoder): List<T> {
-        return when (val element = decoder.decodeSerializableValue(JsonElement.serializer())) {
-            is JsonArray -> Json.decodeFromJsonElement(ListSerializer(baseSer), element)
-            else         -> emptyList()
-        }
-    }
-
-    override fun serialize(encoder: Encoder, value: List<T>) {
-        encoder.encodeSerializableValue(ListSerializer(baseSer), value)
-    }
-}
-
 @Serializable
 data class Program(
     val rampMode: String,
@@ -690,7 +682,7 @@ data class Status(
     val first: Boolean = true,
     val rampMode: String? = null,
     val startTime: Double,
-    val bufferSeconds: Int = 0,
+    val bufferSeconds: Double = 0.0,
     val cameraSettings: CameraSettings,
     //val hdrSet: Map<String, @Contextual Any?>,
     val hdrIndex: Int,
@@ -730,11 +722,24 @@ data class Exposure(
 
 @Serializable
 data class ExposureStatus(
-    val rampEv: @Contextual Any? = null,
-    val highlights: @Contextual Any? = null,
-    val rate: @Contextual Any? = null,
-    val direction: @Contextual Any? = null,
-    val highlightProtection: Int? = null
+    val rampEv: Double? = null,
+    val highlights: JsonElement? = null,
+    val rate: Double? = null,
+    val direction: Int = 0,
+    val highlightProtection: Int? = null,
+    val intervalSeconds: Double? = null,
+    val nightRatio: Double? = null,
+    val nightRefEv: Double? = null,
+    val dayRefEv: Double? = null,
+    val fixedRefEv: Double? = null,
+    val manualOffsetEv: Double? = null,
+    val evMean: Double? = null,
+    val evSlope: Double? = null,
+    val targetEv: Double? = null,
+    val pastError: Double? = null,
+    val pComponent: Double? = null,
+    val iComponent: Double? = null,
+    val dComponent: Double? = null
 )
 
 @Serializable

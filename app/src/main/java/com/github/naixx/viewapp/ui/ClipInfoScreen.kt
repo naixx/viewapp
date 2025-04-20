@@ -295,13 +295,6 @@ fun PlayerTimeInfo(framesCount: Int, currentFrameIndex: Int) {
     val currentTimeFormatted = formatTime(currentTimeSecs)
 
     Text(
-        text = "Frame: $currentFrameIndex of $framesCount",
-        style = MaterialTheme.typography.bodyLarge,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-        textAlign = TextAlign.Center
-    )
-
-    Text(
         text = "Time: $currentTimeFormatted / $totalTimeFormatted at ${fps}fps",
         style = MaterialTheme.typography.bodyMedium,
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),

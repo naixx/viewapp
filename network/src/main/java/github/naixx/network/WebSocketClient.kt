@@ -1,5 +1,6 @@
 package github.naixx.network
 
+import com.github.naixx.logger.LL
 import github.naixx.network.AddressResponse.Address
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -63,6 +64,7 @@ class WebSocketClient(
                         }
                         actualConnect(foundServer, onCreate, onMessage)
                     }
+
                     is AddressResponse.LoginRequired -> {
                         val api = get<ViewApi>(parameters = { parametersOf(foundServer.fromUrl) })
                         try {
@@ -86,7 +88,7 @@ class WebSocketClient(
                     }
                 }
             } catch (e: Exception) {
-                println(e)
+                LL.e(e)
                 connectionState.value = ConnectionState.Disconnected
                 session = null
                 // Switch connection type for next attempt

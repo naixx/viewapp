@@ -1,21 +1,23 @@
 package com.github.naixx.viewapp.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Timelapse
-import androidx.compose.material.icons.filled.VideoLibrary
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.tab.*
-import coil3.compose.AsyncImagePainter.State.Empty.painter
 import com.github.naixx.compose.painter
-import com.github.naixx.viewapp.R
 import com.github.naixx.viewapp.ui.theme.ViewAppTheme
+import com.github.naixx.viewapp.utils.activityViewModel
+import github.naixx.network.ConnectionState
 
 object MainScreen : Screen {
 
@@ -30,6 +32,9 @@ fun MainScreen(
 
 ) {
 
+    val viewModel = activityViewModel<MainViewModel>()
+    val conn by viewModel.connectionState.collectAsState()
+
     val tabs = listOf(
         StatusTab(listOf()),
         ClipsTab()
@@ -37,10 +42,20 @@ fun MainScreen(
     TabNavigator(tabs.first()) {
         Scaffold(
             bottomBar = {
-                NavigationBar(Modifier.height(60.dp), windowInsets = WindowInsets(0,8,0,0)) {
-                    tabs.forEach { tab ->
-                        TabNavigationItem(tab)
-                    }
+                NavigationBar(Modifier.height(60.dp), windowInsets = WindowInsets(0, 8, 0, 0)) {
+                    TabNavigationItem(tabs[0])
+
+                    Box(
+                        modifier = Modifier.size(4.dp).clip(CircleShape).background(
+                            when (conn) {
+                                is ConnectionState.Connected -> Color(0xFF4AE723)
+                                ConnectionState.Connecting   -> Color(0xFFFFA500)
+                                else                         -> Color.Red
+                            }
+                        )
+                    )
+                    TabNavigationItem(tabs[1])
+
                 }
             }
         ) {

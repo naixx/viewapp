@@ -66,7 +66,7 @@ val status = Status(
     message = "starting",
     autoSettings = AutoSettings(paddingTimeMs = 2000.0),
     exposure = Exposure(
-        status = ExposureStatus(rampEv = null, highlights = null, rate = null, direction = null, highlightProtection = 0),
+        status = ExposureStatus(rampEv = null, highlights = null, rate = null, direction = 1, highlightProtection = 0),
         config = ExposureConfig(
             sunrise = Sunrise(
                 p = 0.97,
