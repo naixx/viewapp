@@ -93,7 +93,7 @@ private data class StatusTab(
 
     @Composable
     override fun Content() {
-        StatusScreen(messages).Content()
+        StatusScreen().Content()
     }
 }
 

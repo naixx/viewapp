@@ -6,7 +6,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.websocket.*
 import io.ktor.client.request.get
-import io.ktor.websocket.send
+import io.ktor.websocket.Frame
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.serialization.json.Json
@@ -121,7 +121,7 @@ class WebSocketClient(
                     val message = receiveDeserialized<BaseMessage>()
                     onMessage(message)
                 } catch (e: Exception) {
-                    println(e)
+                    LL.e(e)
                 }
             }
         }
@@ -146,7 +146,7 @@ class WebSocketClient(
             }.getOrNull()
         }
 
-    suspend fun send(message: String) {
-        session?.send(message)
+    suspend fun send(message: OutMessage) {
+        session?.sendSerialized(message)
     }
 }

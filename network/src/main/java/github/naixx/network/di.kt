@@ -1,5 +1,6 @@
 package github.naixx.network
 
+import com.github.naixx.logger.LL
 import github.naixx.network.internal.*
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
@@ -86,7 +87,7 @@ val networkModule = module {
                     val exceptionResponseText = try {
                         response.bodyAsText()
                     } catch (e: Throwable) {
-                        println(e)
+                        LL.e(e)
                         "<failed to parse body>"
                     }
 //                    if (!response.status.isSuccess()) {

@@ -85,13 +85,13 @@ class WebSocketService : Service() {
         session.sendSerialized(Get("camera"))
         session.sendSerialized(Get("settings"))
         session.sendSerialized(Get("battery"))
+        session.sendSerialized(Get("program"))
     }
 
-    fun send(message: String) {
-//        serviceScope.launch {
-//
-//            webSocketClient.send(message)
-//        }
+    fun send(message: OutMessage) {
+        serviceScope.launch {
+            webSocketClient.send(message)
+        }
     }
 
     private fun handleMessage(message: String) {

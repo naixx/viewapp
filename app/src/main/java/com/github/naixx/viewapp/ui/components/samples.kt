@@ -9,6 +9,7 @@ import github.naixx.network.Exposure
 import github.naixx.network.ExposureConfig
 import github.naixx.network.ExposureStatus
 import github.naixx.network.Focus
+import github.naixx.network.Histogram
 import github.naixx.network.ISO
 import github.naixx.network.Program
 import github.naixx.network.Shutter
@@ -62,11 +63,11 @@ val status = Status(
     running = true,
     frames = 0,
     rampRate = 0.0,
-    intervalMs = 5000,
+    intervalMs = 5000.0,
     message = "starting",
     autoSettings = AutoSettings(paddingTimeMs = 2000.0),
     exposure = Exposure(
-        status = ExposureStatus(rampEv = null, highlights = null, rate = null, direction = 1, highlightProtection = 0),
+        status = ExposureStatus(rampEv = null, highlights = null, rate = null, direction = 1.0, highlightProtection = 0),
         config = ExposureConfig(
             sunrise = Sunrise(
                 p = 0.97,
@@ -129,3 +130,12 @@ val sampleClipInfo = TimelapseClipInfo(
     thumbnail = "/root/time-lapse/tl-329/cam-1-00001.jpg",
     frames = 3786
 )
+
+// Sample histogram for previews
+val sampleHistogram = Histogram(List(256) {
+    when {
+        it > 20 && it < 50 -> 80
+        it in 100..200     -> 40
+        else               -> 10
+    }
+}, "histogram")

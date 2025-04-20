@@ -13,7 +13,8 @@ sealed class BaseMessage {
 }
 
 @Serializable
-abstract class OutMessage(override val type: String) : BaseMessage() {
+@JsonClassDiscriminator("poly")
+sealed class OutMessage(override val type: String) : BaseMessage() {
 }
 
 @Serializable
@@ -52,15 +53,22 @@ data class UnknownMessage(val rawString: String) : OutMessage("unknown")
 @SerialName("thumbnail")
 data class Thumbnail(
     val imageType: String,
-    val jpeg: String,
     val time: String, //TODO use datetime
-    override val type: String
-) : BaseMessage()
+    override val type: String,
+    @SerialName("jpeg")
+    override val imageBase64: String
+) : BaseMessage(), CoilMapper
 
 @Serializable
 @SerialName("histogram")
 data class Histogram(
     val histogram: List<Int>, override val type: String
+) : BaseMessage()
+
+@Serializable
+@SerialName("timelapseProgram")
+data class TimelapseProgram(
+    val program: Program, override val type: String
 ) : BaseMessage()
 
 @Serializable
@@ -469,7 +477,7 @@ val json5 = """
 """.trimIndent()
 
 //language=json
-val program = """
+val programJson = """
     {
       "program": {
         "rampMode": "auto",
@@ -669,7 +677,7 @@ data class Status(
     val frames: Int,
     val framesRemaining: Int? = null,
     val rampRate: Double? = null,
-    val intervalMs: Int,
+    val intervalMs: Double,
     val message: String,
     val rampEv: Double? = null,
     val autoSettings: AutoSettings,
@@ -725,7 +733,7 @@ data class ExposureStatus(
     val rampEv: Double? = null,
     val highlights: JsonElement? = null,
     val rate: Double? = null,
-    val direction: Int = 0,
+    val direction: Double = 0.0,
     val highlightProtection: Int? = null,
     val intervalSeconds: Double? = null,
     val nightRatio: Double? = null,
