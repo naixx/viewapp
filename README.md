@@ -1,8 +1,8 @@
 # ViewApp
-<img src="https://github.com/user-attachments/assets/b178b8ca-4913-4dc9-93bb-4e17078db307" width=300/>
-<img src="https://github.com/user-attachments/assets/b8bc8ccc-787e-4d58-a38e-651c1ebd5f8c" width=300/>
-<img src="assets/ezgif-3a11a37837bd17.gif" width=300/>
-<img src="assets/ezgif-3aca7de4ce0631.gif" width=300/>
+<img src="https://github.com/user-attachments/assets/b178b8ca-4913-4dc9-93bb-4e17078db307" width="200"/>
+<img src="https://github.com/user-attachments/assets/b8bc8ccc-787e-4d58-a38e-651c1ebd5f8c" width="200"/>
+<img src="assets/ezgif-3a11a37837bd17.gif" width="200"/>
+<img src="assets/ezgif-3aca7de4ce0631.gif" width="200"/>
 
 
 ViewApp is an unofficial Android app for the Timelapse+ VIEW device. It requires a custom VIEW firmware available
