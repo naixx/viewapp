@@ -37,7 +37,7 @@ class WebSocketService : Service() {
     }
 
     private fun startForegroundService() {
-        val notification = createNotification("Connection to VIEW", R.drawable.ic_menu_gallery)
+        val notification = createNotification("Not connected", R.drawable.ic_menu_gallery)
 
         startForeground(1, notification)
     }
@@ -57,6 +57,7 @@ class WebSocketService : Service() {
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setOngoing(true)
+            .setSilent(true)
             .addAction(R.drawable.ic_menu_close_clear_cancel, "Stop", stopPendingIntent)
             .build()
         return notification
@@ -85,6 +86,8 @@ class WebSocketService : Service() {
                     stopSelf()
                 } else if (it is ConnectionState.Connecting) {
                     sendNotification("Connecting to VIEW", R.drawable.ic_popup_sync)
+                } else if (it is ConnectionState.Connected) {
+                    sendNotification("Connected to VIEW", R.drawable.ic_menu_gallery)
                 }
             }
         }

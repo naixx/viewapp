@@ -154,17 +154,12 @@ class MediaCodecEncoder(
 
         try {
             // Find a suitable encoder and color format
-            var selectedColorFormat = MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible
-
-            // Try common YUV420 formats that most devices support
-            val preferredFormats = listOf(
-                MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible,
-                MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar,
-                MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar
-            )
+            var selectedColorFormat: Int? = null
 
             val codecList = MediaCodecList(MediaCodecList.REGULAR_CODECS)
             val encoderNames = ArrayList<String>()
+            var foundPlanar = false
+            var foundSemiPlanar = false
 
             // Find compatible encoder and format
             for (info in codecList.codecInfos) {
@@ -178,21 +173,40 @@ class MediaCodecEncoder(
                     val caps = info.getCapabilitiesForType(mimeType)
                     val colorFormats = caps.colorFormats
 
-                    // Check if any of our preferred formats are supported
-                    for (preferredFormat in preferredFormats) {
-                        if (colorFormats.contains(preferredFormat)) {
-                            selectedColorFormat = preferredFormat
-                            LL.d("Using encoder ${info.name} with format $selectedColorFormat")
-                            break
-                        }
+                    // Prefer Planar (I420) as it matches our ColorConverter
+                    if (colorFormats.contains(MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar)) {
+                        selectedColorFormat = MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar
+                        foundPlanar = true
+                        LL.d("Found suitable encoder ${info.name} supporting Planar YUV420 (I420)")
+                        break // Found the best match
+                    } else if (colorFormats.contains(MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar)) {
+                        // Mark if SemiPlanar is available as a fallback possibility
+                        foundSemiPlanar = true
+                        LL.d("Encoder ${info.name} supports SemiPlanar YUV420")
                     }
                 } catch (e: Exception) {
-                    LL.e("Error checking encoder ${info.name}: ${e.message}")
+                    LL.w("Error checking capabilities for encoder ${info.name}: ${e.message}")
                 }
             }
 
-            LL.d("Available encoders: ${encoderNames.joinToString()}")
-            LL.d("Using color format: $selectedColorFormat")
+            // If Planar wasn't found, try SemiPlanar (might need converter change later)
+            // If neither, fall back to Flexible
+            if (selectedColorFormat == null) {
+                if (foundSemiPlanar) {
+                    selectedColorFormat = MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar
+                    LL.w("Using SemiPlanar YUV420 format with Planar data converter. Colors might be incorrect.")
+                } else {
+                    // Fallback to flexible as last resort
+                    selectedColorFormat = MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible
+                    LL.w("No specific Planar/SemiPlanar YUV420 format found. Using Flexible format. Colors might be incorrect.")
+                }
+            }
+
+            if (selectedColorFormat == null) {
+                return EncodingResult.Error("Could not find any suitable YUV420 color format for the encoder.")
+            }
+
+            LL.i("Selected color format: $selectedColorFormat (Planar=$foundPlanar, SemiPlanar=$foundSemiPlanar)")
 
             // Set the selected format
             format.setInteger(MediaFormat.KEY_COLOR_FORMAT, selectedColorFormat)
