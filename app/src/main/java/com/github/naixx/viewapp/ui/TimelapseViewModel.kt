@@ -48,7 +48,7 @@ class TimelapseViewModel(private val clip: Clip) : ViewModel(), KoinComponent {
      */
     suspend fun checkExistingFrames(context: Context): Pair<Int, Int> {
         return withContext(Dispatchers.IO) {
-            val cacheDir = File(context.filesDir, "timelapses/${clip.name}")
+            val cacheDir = File(context.filesDir, "timelapses/${clip.name.lowercase()}")
             val downloadedIndices = (1..totalFrames).filter { i ->
                 File(cacheDir, "frame_$i.jpg").exists()
             }
@@ -90,7 +90,7 @@ class TimelapseViewModel(private val clip: Clip) : ViewModel(), KoinComponent {
 
         downloadJob = viewModelScope.launch {
             try {
-                val cacheDir = File(context.filesDir, "timelapses/${clip.name}").apply { mkdirs() }
+                val cacheDir = File(context.filesDir, "timelapses/${clip.name.lowercase()}").apply { mkdirs() }
 
                 (connectionState as? ConnectionState.Connected)?.let { state ->
                     val viewApi: ViewApi = get { parametersOf(state.address.fromUrl) }
@@ -175,7 +175,7 @@ class TimelapseViewModel(private val clip: Clip) : ViewModel(), KoinComponent {
      * Get the file for a specific frame if it exists
      */
     fun getFrameFile(context: Context, frameIndex: Int): File? {
-        val file = File(context.filesDir, "timelapses/${clip.name}/frame_$frameIndex.jpg")
+        val file = File(context.filesDir, "timelapses/${clip.name.lowercase()}/frame_$frameIndex.jpg")
         return if (file.exists()) file else null
     }
 
@@ -194,7 +194,7 @@ class TimelapseViewModel(private val clip: Clip) : ViewModel(), KoinComponent {
 
         // Delete all cached frames
         viewModelScope.launch(Dispatchers.IO) {
-            val cacheDir = File(context.filesDir, "timelapses/${clip.name}")
+            val cacheDir = File(context.filesDir, "timelapses/${clip.name.lowercase()}")
             if (cacheDir.exists()) {
                 cacheDir.listFiles()?.forEach { file ->
                     file.delete()
@@ -210,7 +210,7 @@ class TimelapseViewModel(private val clip: Clip) : ViewModel(), KoinComponent {
      */
     suspend fun getCacheSize(context: Context): Long {
         return withContext(Dispatchers.IO) {
-            val cacheDir = File(context.filesDir, "timelapses/${clip.name}")
+            val cacheDir = File(context.filesDir, "timelapses/${clip.name.lowercase()}")
             var size = 0L
             if (cacheDir.exists()) {
                 cacheDir.listFiles()?.forEach { file ->

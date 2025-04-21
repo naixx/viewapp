@@ -55,6 +55,8 @@ data class Thumbnail(
     val imageType: String,
     val time: String, //TODO use datetime
     override val type: String,
+    val frameIndex: Int,
+    val tlName: String,
     @SerialName("jpeg")
     override val imageBase64: String
 ) : BaseMessage(), CoilMapper

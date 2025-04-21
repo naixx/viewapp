@@ -3,6 +3,7 @@ package com.github.naixx.viewapp
 import android.app.*
 import android.content.Intent
 import android.os.Binder
+import android.util.Base64
 import androidx.core.app.*
 import com.github.naixx.logger.LL
 import com.github.naixx.viewapp.network.generateLocalServer
@@ -12,6 +13,7 @@ import io.ktor.client.plugins.websocket.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableSharedFlow
 import org.koin.android.ext.android.inject
+import java.io.File
 
 class WebSocketService : Service() {
 
@@ -63,6 +65,7 @@ class WebSocketService : Service() {
                 launch {
                     messages.emit(it)
                 }
+                processMessage(it)
             }
         }
         serviceScope.launch {
@@ -91,6 +94,29 @@ class WebSocketService : Service() {
     fun send(message: OutMessage) {
         serviceScope.launch {
             webSocketClient.send(message)
+        }
+    }
+
+    private fun processMessage(message: BaseMessage) {
+        if (message is Thumbnail) {
+            saveThumbnail(message)
+        }
+    }
+
+    private fun saveThumbnail(thumbnail: Thumbnail) {
+        serviceScope.launch(Dispatchers.IO) {
+            try {
+                val timelapseDir = File(filesDir, "timelapses/${thumbnail.tlName.lowercase()}").apply { mkdirs() }
+                val frameNumber = thumbnail.frameIndex
+                val frameFile = File(timelapseDir, "frame_$frameNumber.jpg")
+
+                val imageData = Base64.decode(thumbnail.imageBase64, Base64.DEFAULT)
+                frameFile.writeBytes(imageData)
+
+                LL.d("Service saved thumbnail: ${frameFile.absolutePath}")
+            } catch (e: Exception) {
+                LL.e("Error saving thumbnail: ${e.message}")
+            }
         }
     }
 
