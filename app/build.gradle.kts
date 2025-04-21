@@ -18,15 +18,25 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        project.properties.forEach { (key, value) ->
+        project.properties.forEach { key, value ->
             if (key.startsWith("args.") && value != null) {
                 android.defaultConfig.testInstrumentationRunnerArguments[key.replace("args.", "")] = value.toString()
             }
         }
     }
 
+    signingConfigs {
+        create("release") {
+            storePassword = getArg("RELEASE_STORE_PASSWORD")
+            keyAlias = getArg("RELEASE_KEY_ALIAS")
+            keyPassword = getArg("RELEASE_KEY_PASSWORD")
+            storeFile = getArg("RELEASE_STORE_FILE")?.let { file(it) }
+        }
+    }
+
     buildTypes {
         debug {
+            applicationIdSuffix = ".debug"
             buildConfigField("String", "EMAIL", "\"${findProperty("email") ?: ""}\"")
             buildConfigField("String", "PASSWORD", "\"${findProperty("password") ?: ""}\"")
         }
@@ -36,6 +46,7 @@ android {
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             buildConfigField("String", "EMAIL", "\"${findProperty("email") ?: ""}\"")
             buildConfigField("String", "PASSWORD", "\"${findProperty("password") ?: ""}\"")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {
@@ -148,4 +159,9 @@ tasks.withType<Test> {
             systemProperty(key.replace("args.", ""), value.toString())
         }
     }
+}
+
+fun getArg(name: String): String? {
+    val value = project.findProperty("args.$name") as String?
+    return value
 }
