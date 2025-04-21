@@ -5,6 +5,7 @@ import androidx.lifecycle.*
 import com.github.naixx.compose.*
 import com.github.naixx.logger.LL
 import com.github.naixx.viewapp.encoding.*
+import com.github.naixx.viewapp.utils.EventBus
 import github.naixx.db.TimelapseClipInfoDao
 import github.naixx.network.*
 import kotlinx.coroutines.*
@@ -138,6 +139,8 @@ class TimelapseViewModel(private val clip: Clip) : ViewModel(), KoinComponent {
                         downloadedIndices.addAll(results)
                         downloadedFrames.value = downloadedIndices.sorted()
                     }
+                } ?: run {
+                    EventBus.error("Not connected to a view server")
                 }
             } catch (e: Exception) {
                 LL.d("Download error: ${e.message}")

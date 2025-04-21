@@ -90,6 +90,7 @@ dependencies {
     implementation(libs.multiplatform.settings.observable)
     implementation(libs.multiplatform.settings.serialization)
     debugImplementation(libs.slf4j.simple)
+    implementation(libs.sonner)
 
 
 

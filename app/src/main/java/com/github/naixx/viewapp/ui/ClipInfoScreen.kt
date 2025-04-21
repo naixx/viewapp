@@ -2,7 +2,6 @@ package com.github.naixx.viewapp.ui
 
 import android.content.Intent
 import android.net.Uri
-import android.widget.Toast
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
@@ -12,7 +11,6 @@ import androidx.compose.material.icons.outlined.OpenInNew
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.platform.LocalContext
@@ -26,7 +24,7 @@ import coil3.compose.AsyncImage
 import coil3.request.*
 import com.github.naixx.viewapp.encoding.EncodingResult
 import com.github.naixx.viewapp.ui.components.*
-import com.github.naixx.viewapp.utils.activityViewModel
+import com.github.naixx.viewapp.utils.*
 import github.naixx.network.*
 import kotlinx.coroutines.*
 import org.koin.androidx.compose.koinViewModel
@@ -106,16 +104,16 @@ class ClipInfoScreen(val clip: Clip) : Screen {
             timelapseViewModel.exportResult.collect { result ->
                 when (result) {
                     is EncodingResult.Success -> {
-                        Toast.makeText(context, "Video exported successfully", Toast.LENGTH_LONG).show()
+                        EventBus.success("Video exported successfully")
                         lastExportedUri = result.uri
                     }
 
                     is EncodingResult.Error -> {
-                        Toast.makeText(context, "Export failed: ${result.message}", Toast.LENGTH_LONG).show()
+                        EventBus.success("Export failed: ${result.message}")
                     }
 
                     is EncodingResult.Canceled -> {
-                        Toast.makeText(context, "Export was canceled", Toast.LENGTH_LONG).show()
+                        EventBus.info("Export was canceled")
                     }
                 }
             }
@@ -132,18 +130,18 @@ class ClipInfoScreen(val clip: Clip) : Screen {
                 .verticalScroll(rememberScrollState())
         ) {
             Box {
-                AppBarWithBack(
-                    title = clip.name,
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
-                    onBackClick = { navigator.pop() },
-                    modifier = Modifier.align(Alignment.TopStart)
-                )
                 TimelapsePlayer(
                     frames = frames,
                     progress = progress,
                     currentFrameIndex = currentFrameIndex,
                     context = context,
                     getFrameFile = { index -> timelapseViewModel.getFrameFile(context, index) }
+                )
+                AppBarWithBack(
+                    title = clip.name,
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
+                    onBackClick = { navigator.pop() },
+                    modifier = Modifier.align(Alignment.TopStart)
                 )
             }
 
@@ -379,11 +377,11 @@ fun PlayerControls(
                 imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow
             ) { onPlayPause() }
 
-           /* Spacer(modifier = Modifier.width(16.dp))
+            /* Spacer(modifier = Modifier.width(16.dp))
 
-            VButton(
-                text = "Reset"
-            ) { onReset() }*/
+             VButton(
+                 text = "Reset"
+             ) { onReset() }*/
         }
     }
 }

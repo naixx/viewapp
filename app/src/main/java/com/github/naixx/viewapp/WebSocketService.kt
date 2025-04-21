@@ -1,7 +1,10 @@
 package com.github.naixx.viewapp
 
+import android.*
+import android.R
 import android.app.*
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Binder
 import android.util.Base64
 import androidx.core.app.*
@@ -27,13 +30,19 @@ class WebSocketService : Service() {
     val messages = MutableSharedFlow<BaseMessage>(1)
     private val storageProvider: StorageProvider by inject()
     val connectionState = webSocketClient.connectionState
-
+    private val notificationManager by lazy { NotificationManagerCompat.from(this) }
     override fun onCreate() {
         super.onCreate()
         LL.e("onCreate")
     }
 
     private fun startForegroundService() {
+        val notification = createNotification("Connection to VIEW", R.drawable.ic_menu_gallery)
+
+        startForeground(1, notification)
+    }
+
+    private fun createNotification(text: String, iconRes: Int = R.drawable.ic_popup_sync): Notification {
         val stopIntent = Intent(this, WebSocketService::class.java).apply {
             action = ACTION_STOP_SERVICE
         }
@@ -43,15 +52,14 @@ class WebSocketService : Service() {
 
         val notification = NotificationCompat.Builder(this, "WebSocketChannel")
             .setContentTitle("WebSocket Service")
-            .setContentText("Running WebSocket connection")
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentText(text)
+            .setSmallIcon(iconRes)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setOngoing(true)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop", stopPendingIntent)
+            .addAction(R.drawable.ic_menu_close_clear_cancel, "Stop", stopPendingIntent)
             .build()
-
-        startForeground(1, notification)
+        return notification
     }
 
     private fun startWebSocketConnection() {
@@ -75,9 +83,21 @@ class WebSocketService : Service() {
                     LL.e("login req")
                     stopForeground(STOP_FOREGROUND_REMOVE)
                     stopSelf()
+                } else if (it is ConnectionState.Connecting) {
+                    sendNotification("Connecting to VIEW", R.drawable.ic_popup_sync)
                 }
             }
         }
+    }
+
+    private fun sendNotification(text: String, icon: Int) {
+        if (ActivityCompat.checkSelfPermission(
+                this@WebSocketService,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) != PackageManager.PERMISSION_GRANTED
+        )
+            return
+        notificationManager.notify(1, createNotification(text, icon))
     }
 
     private suspend fun onSessionCreated(
@@ -136,7 +156,6 @@ class WebSocketService : Service() {
         }
 
         return super.onStartCommand(intent, flags, startId)
-        LL.e("onStartCommand")
     }
 
     override fun onStart(intent: Intent?, startId: Int) {

@@ -25,6 +25,7 @@ import com.github.naixx.viewapp.WebSocketService.Companion.ACTION_STOP_SERVICE
 import com.github.naixx.viewapp.ui.components.LocalSuperNavigator
 import com.github.naixx.viewapp.ui.theme.ViewAppTheme
 import com.github.naixx.viewapp.utils.ClipMapper
+import com.github.naixx.viewapp.utils.ToastMessageHandler
 import github.naixx.network.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -94,6 +95,7 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                 }
+                ToastMessageHandler()
 
             }
         }
@@ -159,8 +161,9 @@ class MainActivity : ComponentActivity() {
                 viewModel.onMessage(it)
             }.launchIn(lifecycleScope)
             service.connectionState.onEach {
+                LL.e(it)
                 viewModel.connectionState.value = it
-                if (it is ConnectionState.LoginRequired && isBound.value)
+                if (it is ConnectionState.Disconnected && isBound.value)
                     unbindService(this).also { isBound.value = false }
             }.launchIn(lifecycleScope)
             viewModel.outgoing.onEach {

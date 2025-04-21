@@ -37,12 +37,6 @@ class StatusScreen : Screen {
         val c = LocalContext.current as MainActivity
         val bound by c.isBound.collectAsState()
 
-        val connectionString = when (val con = conn) {
-            is ConnectionState.Connected -> con.address.address
-            is ConnectionState.LoginRequired -> con.address.fromUrl ?: ""
-            else -> con.toString()
-        }
-
         OnConnectedEffect(conn) {
             viewModel.send(Get("program"))
         }
@@ -109,7 +103,8 @@ class StatusScreen : Screen {
         Column(
             modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp).verticalScroll(rememberScrollState())
         ) {
-            ServiceControls(bound, connectionString, { c.startService() }, { c.stopService() })
+            Spacer(modifier = Modifier.height(8.dp))
+            ServiceControls(bound, conn, { c.startService() }, { c.stopService() })
 
             if (intervalStatus?.status?.running == true) {
                 if (clip != null && timelapseViewModel != null) {
@@ -158,7 +153,9 @@ class StatusScreen : Screen {
 
                 TimeLapseStatus(bound, connected, intervalStatus?.status, program?.program)
             }
-            BatteryInfo(connected, settings, battery)
+            BatteryInfo(connected, settings, battery, modifier = Modifier.align(Alignment.CenterHorizontally))
+            Spacer(modifier = Modifier.height(8.dp))
+
         }
     }
 
@@ -385,20 +382,26 @@ class StatusScreen : Screen {
     }
 
     @Composable
-    private fun ServiceControls(bound: Boolean, connectionString: String, onStart: () -> Unit, onStop: () -> Unit) {
+    private fun ServiceControls(bound: Boolean, conn: ConnectionState, onStart: () -> Unit, onStop: () -> Unit) {
         if (!bound) {
             VButton("Connect") {
                 onStart()
             }
         } else {
-            VButton("Disconnect from $connectionString") {
+            val connectionString = when (val con = conn) {
+                is ConnectionState.Connected -> "Disconnect from " + con.address.address
+                is ConnectionState.Connecting -> "Stop connecting to VIEW"
+                else -> "Stop"
+            }
+
+            VButton(connectionString) {
                 onStop()
             }
         }
     }
 
     @Composable
-    private fun BatteryInfo(connected: ConnectedMessage?, settings: SettingsMessage?, battery: Battery?) {
+    private fun BatteryInfo(connected: ConnectedMessage?, settings: SettingsMessage?, battery: Battery?, modifier: Modifier = Modifier) {
         connected?.let {
             val text = listOfNotNull(
                 it.model.takeIf { it.isNotEmpty() },
@@ -406,7 +409,7 @@ class StatusScreen : Screen {
                 battery?.let { "VIEW battery " + it.percentage.toInt() + "%" }
             ).joinToString()
 
-            Text(text, style = MaterialTheme.typography.bodySmall)
+            Text(text, style = MaterialTheme.typography.bodySmall, modifier = modifier)
         }
     }
 
@@ -515,7 +518,7 @@ class StatusScreen : Screen {
                 Spacer(modifier = Modifier.height(8.dp))
                 TimeLapseStatus(true, connected, intervalStatus.status, sampleProgram)
                 Spacer(modifier = Modifier.height(8.dp))
-                ServiceControls(true, "VIEW.tl", {}, {})
+                ServiceControls(true, ConnectionState.Connecting, {}, {})
                 Spacer(modifier = Modifier.height(8.dp))
                 BatteryInfo(connected, settings, battery)
             }
