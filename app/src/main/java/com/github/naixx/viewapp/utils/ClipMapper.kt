@@ -12,7 +12,7 @@ class ClipMapper : Mapper<CoilMapper, ByteArray> {
     @OptIn(ExperimentalEncodingApi::class)
     override fun map(data: CoilMapper, options: Options): ByteArray? {
         return try {
-            val cleanBase64 = data.imageBase64.trim()
+            val cleanBase64 = data.imageBase64!!.trim()
             Base64.Default.decode(cleanBase64)
         } catch (e: Exception) {
             ByteArray(0)

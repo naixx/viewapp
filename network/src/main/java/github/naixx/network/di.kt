@@ -17,7 +17,9 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.modules.*
 import okhttp3.logging.HttpLoggingInterceptor
 import org.koin.core.module.dsl.singleOf
+import org.koin.core.qualifier.qualifier
 import org.koin.dsl.module
+import sun.nio.ch.Net
 
 enum class Qualifiers {
     DYNAMIC,
@@ -71,9 +73,11 @@ val networkModule = module {
             install(ContentNegotiation) {
                 json(json)
             }
-//            install(HttpTimeout) {
-//                requestTimeoutMillis = get(qualifier(Net.TimeoutMillis))
-//            }
+            install(HttpTimeout) {
+                requestTimeoutMillis = 10000
+                connectTimeoutMillis = 10000
+                socketTimeoutMillis = 10000
+            }
             install(WebSockets) {
                 contentConverter = KotlinxWebsocketSerializationConverter(json)
                 pingIntervalMillis = 1000

@@ -12,7 +12,7 @@ import cafe.adriel.voyager.core.screen.Screen
 import coil3.compose.AsyncImage
 import com.github.naixx.viewapp.ui.components.*
 import com.github.naixx.viewapp.utils.activityViewModel
-import github.naixx.network.Clip
+import github.naixx.network.*
 
 class ClipsScreen() : Screen {
 
@@ -29,7 +29,12 @@ class ClipsScreen() : Screen {
         val clips = viewModel.clips.collectAsState()
         Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
             clips.value.forEach { clip ->
-                ClipItem(clip = clip)
+                val model =
+                    if (!clip.imageBase64.isNullOrBlank())
+                        clip
+                    else
+                        (conn as? ConnectionState.Connected)?.address?.fromUrl + "download?file=${clip.name.lowercase()}%2fcam-1-00001.jpg"
+                ClipItem(clip = clip, model)
             }
 
         }
@@ -37,7 +42,7 @@ class ClipsScreen() : Screen {
 }
 
 @Composable
-private fun ClipItem(clip: Clip, modifier: Modifier = Modifier) {
+private fun ClipItem(clip: Clip, model: Any?, modifier: Modifier = Modifier) {
     val navigator = SuperNav
 
     Card(modifier = modifier.fillMaxWidth().padding(8.dp), onClick = {
@@ -48,7 +53,7 @@ private fun ClipItem(clip: Clip, modifier: Modifier = Modifier) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             AsyncImage(
-                model = clip,
+                model = model,
                 contentDescription = clip.name,
                 modifier = Modifier
                     .fillMaxWidth()

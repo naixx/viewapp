@@ -13,9 +13,9 @@ data class Clip(
     val frames: Int,
     val name: String,
     @SerialName("image")
-    override val imageBase64: String
+    override val imageBase64: String?
 ) : SerializableInterop, CoilMapper
 
 interface CoilMapper{
-    val imageBase64: String
+    val imageBase64: String?
 }

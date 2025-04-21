@@ -120,6 +120,9 @@ class WebSocketClient(
                 try {
                     val message = receiveDeserialized<BaseMessage>()
                     onMessage(message)
+                } catch (e: kotlinx.coroutines.channels.ClosedReceiveChannelException) {
+                    LL.e(e)
+                    throw e
                 } catch (e: Exception) {
                     LL.e(e)
                 }

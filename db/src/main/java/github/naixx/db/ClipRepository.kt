@@ -23,6 +23,8 @@ class ClipRepositoryImpl(
 
     override suspend fun refreshClips(viewApi: ViewApi) {
         val remoteClips = viewApi.clips()
+        val remoteIds = remoteClips.map { it.id }
+        clipDao.deleteClipsNotIn(remoteIds)
         clipDao.insertClips(remoteClips)
     }
 

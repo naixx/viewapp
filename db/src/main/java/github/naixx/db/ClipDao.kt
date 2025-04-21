@@ -17,4 +17,7 @@ interface ClipDao {
 
     @Query("DELETE FROM clips")
     suspend fun deleteAllClips()
+
+    @Query("DELETE FROM clips WHERE id NOT IN (:clipIds)")
+    suspend fun deleteClipsNotIn(clipIds: List<Int>)
 }
