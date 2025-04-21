@@ -67,8 +67,9 @@ class ClipInfoScreen(val clip: Clip) : Screen {
 
         LaunchedEffect(Unit) {
             scope.launch(Dispatchers.IO) {
-                val existingFrames = timelapseViewModel.checkExistingFrames(context)
-                if (existingFrames.first > 0 && existingFrames.second > 0) {
+                timelapseViewModel.checkExistingFrames(context, clip.frames)
+                val existingFrames = timelapseViewModel.downloadedFrames.value
+                if (existingFrames.isNotEmpty()) {
                     val size = timelapseViewModel.getCacheSize(context)
                     cacheSize = formatFileSize(size)
                 }
@@ -130,15 +131,21 @@ class ClipInfoScreen(val clip: Clip) : Screen {
                 .animateContentSize()
                 .verticalScroll(rememberScrollState())
         ) {
-            TimelapsePlayer(
-                frames = frames,
-                progress = progress,
-                currentFrameIndex = currentFrameIndex,
-                context = context,
-                title = clip.name,
-                onBackClick = { navigator.pop() },
-                getFrameFile = { index -> timelapseViewModel.getFrameFile(context, index) }
-            )
+            Box {
+                AppBarWithBack(
+                    title = clip.name,
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
+                    onBackClick = { navigator.pop() },
+                    modifier = Modifier.align(Alignment.TopStart)
+                )
+                TimelapsePlayer(
+                    frames = frames,
+                    progress = progress,
+                    currentFrameIndex = currentFrameIndex,
+                    context = context,
+                    getFrameFile = { index -> timelapseViewModel.getFrameFile(context, index) }
+                )
+            }
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -220,8 +227,6 @@ fun TimelapsePlayer(
     progress: Float,
     currentFrameIndex: Int,
     context: android.content.Context,
-    title: String,
-    onBackClick: () -> Unit,
     getFrameFile: (Int) -> java.io.File?
 ) {
     Box(
@@ -259,13 +264,6 @@ fun TimelapsePlayer(
                 color = Color.White
             )
         }
-
-        AppBarWithBack(
-            title = title,
-            colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
-            onBackClick = onBackClick,
-            modifier = Modifier.align(Alignment.TopStart)
-        )
     }
 }
 
@@ -312,10 +310,10 @@ fun PlayerSeekBar(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
+        /*Text(
             text = "1",
             modifier = Modifier.padding(end = 8.dp)
-        )
+        )*/
 
         Slider(
             value = currentFrameIndex.toFloat(),
@@ -327,10 +325,10 @@ fun PlayerSeekBar(
             modifier = Modifier.weight(1f)
         )
 
-        Text(
+        /*Text(
             text = "$framesCount",
             modifier = Modifier.padding(start = 8.dp)
-        )
+        )*/
     }
 }
 
@@ -381,11 +379,11 @@ fun PlayerControls(
                 imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow
             ) { onPlayPause() }
 
-            Spacer(modifier = Modifier.width(16.dp))
+           /* Spacer(modifier = Modifier.width(16.dp))
 
             VButton(
                 text = "Reset"
-            ) { onReset() }
+            ) { onReset() }*/
         }
     }
 }

@@ -14,6 +14,9 @@ import coil3.compose.AsyncImage
 import com.github.naixx.viewapp.ui.components.*
 import com.github.naixx.viewapp.utils.*
 import github.naixx.network.*
+import kotlinx.coroutines.delay
+import org.koin.androidx.compose.koinViewModel
+import org.koin.core.parameter.parametersOf
 import java.util.Locale
 
 class StatusScreen : Screen {
@@ -44,22 +47,113 @@ class StatusScreen : Screen {
             viewModel.send(Get("program"))
         }
 
+        val clip = remember(intervalStatus) {
+            intervalStatus?.status?.tlName?.let { tlName ->
+                Clip(
+                    index = 0,
+                    id = tlName.hashCode(),
+                    name = tlName,
+                    frames = intervalStatus?.status?.frames ?: 0,
+                    imageBase64 = ""
+                )
+            }
+        }
+        val timelapseViewModel = clip?.let {
+            koinViewModel<TimelapseViewModel>(parameters = { parametersOf(it) })
+        }
+        val context = LocalContext.current
+
+        LaunchedEffect(clip) {
+            clip?.let {
+                timelapseViewModel?.checkExistingFrames(context, it.frames)
+            }
+        }
+
+        val downloadedFrames by timelapseViewModel?.downloadedFrames?.collectAsState() ?: remember { mutableStateOf(emptyList()) }
+        val currentFrameIndex by timelapseViewModel?.currentFrameIndex?.collectAsState() ?: remember { mutableStateOf(0) }
+        val isPlaying by timelapseViewModel?.isPlaying?.collectAsState() ?: remember { mutableStateOf(false) }
+
+        val frames = downloadedFrames
+        val progress = remember(frames, clip) {
+            if (clip != null && clip.frames > 0 && frames.isNotEmpty()) {
+                frames.size.toFloat() / clip.frames
+            } else if (frames.isNotEmpty()) {
+                1f
+            } else {
+                0f
+            }
+        }
+
+
+        LaunchedEffect(isPlaying, currentFrameIndex, frames.size) {
+            if (isPlaying && frames.isNotEmpty() && timelapseViewModel != null) {
+                while (isPlaying) {
+                    delay(33)
+                    val nextFrame = if (currentFrameIndex >= frames.size) 1 else currentFrameIndex + 1
+                    timelapseViewModel.setCurrentFrame(nextFrame)
+                }
+            }
+        }
+
+
+
+        DisposableEffect(key1 = Unit) {
+            onDispose {
+                timelapseViewModel?.togglePlayback(false)
+                if (progress > 0f && progress < 1f) {
+                    timelapseViewModel?.stopDownload()
+                }
+            }
+        }
+
         Column(
             modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp).verticalScroll(rememberScrollState())
         ) {
             ServiceControls(bound, connectionString, { c.startService() }, { c.stopService() })
+
             if (intervalStatus?.status?.running == true) {
-                AsyncImage(
-                    model = thumbnail,
-                    contentDescription = null,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(16f / 9f),
-                    contentScale = ContentScale.Crop
-                )
+                if (clip != null && timelapseViewModel != null) {
+                    TimelapsePlayer(
+                        frames = frames,
+                        progress = progress,
+                        currentFrameIndex = currentFrameIndex,
+                        context = context,
+                        getFrameFile = { index -> timelapseViewModel.getFrameFile(context, index) }
+                    )
 
+                    Spacer(modifier = Modifier.height(8.dp))
 
+                    if (frames.isNotEmpty()) {
 
+                        PlayerSeekBar(
+                            currentFrameIndex = currentFrameIndex,
+                            framesCount = frames.size,
+                            onFrameSelected = { timelapseViewModel.setCurrentFrame(it) }
+                        )
+                    }
+
+                    PlayerControls(
+                        progress = progress,
+                        frames = frames,
+                        isPlaying = isPlaying,
+                        isDownloading = timelapseViewModel.isDownloading(),
+                        onPlayPause = { timelapseViewModel.togglePlayback(!isPlaying) },
+                        onReset = { timelapseViewModel.setCurrentFrame(1) },
+                        onDownload = { timelapseViewModel.downloadFrames(context, conn) },
+                        onCancelDownload = { timelapseViewModel.stopDownload() }
+                    )
+                } else {
+                    AsyncImage(
+                        model = thumbnail,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(16f / 9f),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
                 HistogramView(histogram)
 
                 TimeLapseStatus(bound, connected, intervalStatus?.status, program?.program)
@@ -99,7 +193,7 @@ class StatusScreen : Screen {
 
         Text(
             text = "Time-lapse " + status?.tlName,
-            style = MaterialTheme.typography.labelMedium
+            style = MaterialTheme.typography.bodyMedium
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -109,7 +203,7 @@ class StatusScreen : Screen {
             val model = it.model
             Text(
                 text = "$s | ${model.ifEmpty { "unknown" }} connected",
-                style = MaterialTheme.typography.titleSmall
+                style = MaterialTheme.typography.bodyMedium
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -126,7 +220,7 @@ class StatusScreen : Screen {
                 ) {
                     Text(
                         text = "$frames frames (${String.format(Locale.US, "%.1f", duration)}s @30fps)",
-                        style = MaterialTheme.typography.titleMedium
+                        style = MaterialTheme.typography.bodyMedium
                     )
                     if (status.rampMode == "fixed")
                         VSmallButton(

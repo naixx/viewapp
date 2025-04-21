@@ -46,7 +46,7 @@ class TimelapseViewModel(private val clip: Clip) : ViewModel(), KoinComponent {
      * Checks for existing frames without starting download
      * Returns Pair(downloadedCount, totalFrames)
      */
-    suspend fun checkExistingFrames(context: Context): Pair<Int, Int> {
+    suspend fun checkExistingFrames(context: Context, totalFrames: Int): Pair<Int, Int> {
         return withContext(Dispatchers.IO) {
             val cacheDir = File(context.filesDir, "timelapses/${clip.name.lowercase()}")
             val downloadedIndices = (1..totalFrames).filter { i ->
