@@ -1,18 +1,19 @@
+import com.android.build.api.variant.BuildConfigField
+
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
 }
 
 android {
     namespace = "com.github.naixx.viewapp"
-    compileSdk = 35
+    compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     defaultConfig {
         applicationId = "com.github.naixx.viewapp"
-        minSdk = 26
-        targetSdk = 35
+        minSdk = libs.versions.android.minSdk.get().toInt()
+        targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
         versionName = "1.0"
 
@@ -20,7 +21,7 @@ android {
 
         project.properties.forEach { key, value ->
             if (key.startsWith("args.") && value != null) {
-                android.defaultConfig.testInstrumentationRunnerArguments[key.replace("args.", "")] = value.toString()
+                testInstrumentationRunnerArguments[key.replace("args.", "")] = value.toString()
             }
         }
     }
@@ -37,24 +38,17 @@ android {
     buildTypes {
         debug {
             applicationIdSuffix = ".debug"
-            buildConfigField("String", "EMAIL", "\"${findProperty("email") ?: ""}\"")
-            buildConfigField("String", "PASSWORD", "\"${findProperty("password") ?: ""}\"")
         }
 
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            buildConfigField("String", "EMAIL", "\"${findProperty("email") ?: ""}\"")
-            buildConfigField("String", "PASSWORD", "\"${findProperty("password") ?: ""}\"")
             signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
-    }
-    kotlinOptions {
-        jvmTarget = "11"
     }
     buildFeatures {
         compose = true
@@ -71,6 +65,29 @@ android {
         unitTests {
             isIncludeAndroidResources = true
         }
+    }
+}
+
+androidComponents {
+    onVariants { variant ->
+        val email = project.findProperty("email")?.toString() ?: ""
+        val password = project.findProperty("password")?.toString() ?: ""
+        variant.buildConfigFields?.put(
+            "EMAIL",
+            BuildConfigField(
+                "String",
+                "\"$email\"",
+                "User email"
+            )
+        )
+        variant.buildConfigFields?.put(
+            "PASSWORD",
+            BuildConfigField(
+                "String",
+                "\"$password\"",
+                "User password"
+            )
+        )
     }
 }
 
@@ -130,10 +147,9 @@ dependencies {
     implementation(libs.kotlinx.collections.immutable)
 
     // Room
-    val roomVersion = "2.6.1"
-    implementation("androidx.room:room-runtime:$roomVersion")
-    implementation("androidx.room:room-ktx:$roomVersion")
-    ksp("androidx.room:room-compiler:$roomVersion")
+    implementation(libs.room.runtime)
+    implementation(libs.room.ktx)
+    ksp(libs.room.compiler)
 
     testImplementation(libs.robolectric)
     testImplementation("androidx.test:core-ktx:1.6.1")

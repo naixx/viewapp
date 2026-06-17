@@ -3,12 +3,13 @@ accompanistPermissions = "0.36.0"
 composedebugdrawer = "0.5.7"
 composepreferences = "0.4.8"
 firebaseBom = "33.5.1"
-kotlin = "2.1.20"
-ksp = "2.1.20-1.0.31"
-agp = "8.6.1"
-android-compileSdk = "34"
+kotlin = "2.4.0"
+ksp = "2.3.9"
+agp = "9.2.1"
+room = "2.8.4"
+android-compileSdk = "36"
 android-minSdk = "24"
-android-targetSdk = "34"
+android-targetSdk = "36"
 androidx-activityCompose = "1.9.1"
 androidx-appcompat = "1.7.0"
 androidx-constraintlayout = "2.1.4"
@@ -18,7 +19,7 @@ androidx-material = "1.12.0"
 lifecycleRuntimeKtx = "2.8.7"
 
 androidx-test-junit = "1.2.1"
-compose-plugin = "1.7.0"
+compose-plugin = "1.11.1"
 composePlaceholderMaterial3 = "1.0.8"
 core = "1.17.1"
 kmpLibs = "0.1.1"
@@ -29,7 +30,7 @@ koalaplotCore = "0.6.4"
 kotlinxCollectionsImmutable = "0.3.8"
 kotlinxDatetime = "0.6.0-SERIALIZE-LOCAL" #we use specially compiled version
 kottie = "1.9.6"
-ktorfit = "2.4.1"
+ktorfit = "2.7.5"
 
 
 materialIconsExtended = "1.6.8"
@@ -78,6 +79,11 @@ kmp-libs-core = { module = "com.github.naixx.kmp-libs:core", version.ref = "kmpL
 kmp-libs-logger = { module = "com.github.naixx.kmp-libs:logger", version.ref = "kmpLibs" }
 kmp-libs-compose = { module = "com.github.naixx.kmp-libs:compose", version.ref = "kmpLibs" }
 kmp-libs-prefs = { module = "com.github.naixx.kmp-libs:prefs", version.ref = "kmpLibs" }
+
+room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
+room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
+room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
+room-common = { module = "androidx.room:room-common", version.ref = "room" }
 
 koalaplot-core = { module = "io.github.koalaplot:koalaplot-core", version.ref = "koalaplotCore" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -160,7 +166,6 @@ ktor-client-cio = { module = "io.ktor:ktor-client-cio", version.ref = "ktorVersi
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 android-library = { id = "com.android.library", version.ref = "agp" }
-kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 
 jetbrainsCompose = { id = "org.jetbrains.compose", version.ref = "compose-plugin" }

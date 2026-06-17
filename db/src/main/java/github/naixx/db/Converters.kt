@@ -2,6 +2,8 @@ package github.naixx.db
 
 import androidx.room.TypeConverter
 import github.naixx.network.*
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 class Converters {
