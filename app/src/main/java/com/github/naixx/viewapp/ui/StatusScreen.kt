@@ -15,9 +15,21 @@ import com.github.naixx.viewapp.ui.components.*
 import com.github.naixx.viewapp.utils.*
 import github.naixx.network.*
 import kotlinx.coroutines.delay
+import kotlinx.serialization.json.JsonPrimitive
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 import java.util.Locale
+
+// Live (dynamicChange) mode options — only auto/fixed are switchable mid-run.
+private val liveRampModes = listOf(Opt("Auto Ramping", "auto"), Opt("Fixed", "fixed"))
+private val liveIntervalModes = listOf(Opt("Auto Day/Night", "auto"), Opt("Fixed", "fixed"))
+
+private fun DynamicChangeEntry.toRampInfo() = RampInfo(
+    from = startVal ?: 0.0,
+    to = endVal ?: 0.0,
+    startFrame = startFrame ?: 0,
+    endFrame = endFrame ?: 0,
+)
 
 class StatusScreen : Screen {
 
@@ -34,12 +46,19 @@ class StatusScreen : Screen {
         val program by viewModel.program.collectAsState()
         val thumbnail by viewModel.thumbnail.collectAsState()
 
+        val programVm = activityViewModel<ProgramViewModel>()
+        val draft by programVm.draft.collectAsState()
+
         val c = LocalContext.current as MainActivity
         val bound by c.isBound.collectAsState()
+        val notifications by viewModel.notifications.collectAsState()
 
         OnConnectedEffect(conn) {
             viewModel.send(Get("program"))
         }
+        LaunchedEffect(program) { programVm.onDeviceProgram(program?.raw) }
+
+        val send: (OutMessage) -> Unit = { viewModel.send(it) }
 
         val clip = remember(intervalStatus) {
             intervalStatus?.status?.tlName?.let { tlName ->
@@ -60,6 +79,17 @@ class StatusScreen : Screen {
         LaunchedEffect(clip) {
             clip?.let {
                 timelapseViewModel?.checkExistingFrames(context, it.frames)
+            }
+        }
+
+        // Frames arrive live as Thumbnail messages while running — cache + show them immediately.
+        LaunchedEffect(thumbnail) {
+            val t = thumbnail ?: return@LaunchedEffect
+            val tvm = timelapseViewModel
+            if (intervalStatus?.status?.running == true && tvm != null && clip != null &&
+                t.tlName.equals(clip.name, ignoreCase = true)
+            ) {
+                tvm.addLiveFrame(context, t.frameIndex, t.imageBase64)
             }
         }
 
@@ -104,7 +134,20 @@ class StatusScreen : Screen {
             modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp).verticalScroll(rememberScrollState())
         ) {
             Spacer(modifier = Modifier.height(8.dp))
-            ServiceControls(bound, conn, { c.startService() }, { c.stopService() })
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Box(Modifier.weight(1f)) {
+                    ServiceControls(bound, conn, { c.startService() }, { c.stopService() })
+                }
+                NotificationBell(
+                    notifications = notifications,
+                    onRead = { viewModel.markNotificationsRead() },
+                    onClear = { viewModel.clearNotifications() },
+                )
+            }
 
             if (intervalStatus?.status?.running == true) {
                 if (clip != null && timelapseViewModel != null) {
@@ -151,11 +194,41 @@ class StatusScreen : Screen {
                 Spacer(modifier = Modifier.height(8.dp))
                 HistogramView(histogram)
 
-                TimeLapseStatus(bound, connected, intervalStatus?.status, program?.program)
+                TimeLapseStatus(bound, connected, intervalStatus?.status, program?.program, send)
+
+                Spacer(modifier = Modifier.height(16.dp))
+                StopButton(send)
+            } else {
+                // Idle: show the program editor (mirrors the original IntervalometerPage setup view).
+                draft?.let { d ->
+                    ProgramEditor(d, programVm, settings?.settings, send)
+                }
             }
             BatteryInfo(connected, settings, battery, modifier = Modifier.align(Alignment.CenterHorizontally))
             Spacer(modifier = Modifier.height(8.dp))
 
+        }
+    }
+
+    @Composable
+    private fun StopButton(send: (OutMessage) -> Unit) {
+        var showStopConfirm by remember { mutableStateOf(false) }
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            VButton(
+                "STOP",
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+            ) { showStopConfirm = true }
+        }
+        if (showStopConfirm) {
+            AlertDialog(
+                onDismissRequest = { showStopConfirm = false },
+                title = { Text("Stop time-lapse?") },
+                text = { Text("This stops the running time-lapse after the current frame completes.") },
+                confirmButton = {
+                    TextButton(onClick = { send(Stop()); showStopConfirm = false }) { Text("Stop") }
+                },
+                dismissButton = { TextButton(onClick = { showStopConfirm = false }) { Text("Cancel") } },
+            )
         }
     }
 
@@ -184,7 +257,8 @@ class StatusScreen : Screen {
         bound: Boolean,
         connected: ConnectedMessage?,
         status: Status?,
-        program: Program?
+        program: Program?,
+        send: (OutMessage) -> Unit,
     ) {
         if (!bound) return
 
@@ -219,15 +293,20 @@ class StatusScreen : Screen {
                         text = "$frames frames (${String.format(Locale.US, "%.1f", duration)}s @30fps)",
                         style = MaterialTheme.typography.bodyMedium
                     )
-                    if (status.rampMode == "fixed")
-                        VSmallButton(
-                            text = "OF ${status.frames + (status.framesRemaining ?: 0)}"
-                        )
+                    if (status.rampMode == "fixed") {
+                        val total = status.frames + (status.framesRemaining ?: 0)
+                        LiveEditButton(
+                            text = "OF $total",
+                            title = "Total Frames",
+                            current = total.toDouble(),
+                            rampable = false,
+                        ) { v, _ -> send(DynamicChange("frames", JsonPrimitive(v), 0)) }
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                RampingSection(status)
+                RampingSection(status, send)
 
                 Spacer(modifier = Modifier.height(8.dp))
 
@@ -235,16 +314,17 @@ class StatusScreen : Screen {
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                IntervalSection(status, program)
+                IntervalSection(status, program, send)
             }
         }
     }
 
     @Composable
-    private fun RampingSection(status: Status) {
+    private fun RampingSection(status: Status, send: (OutMessage) -> Unit) {
         val rampEv = status.exposure.status.manualOffsetEv?.formatted() ?: "0"
         val dayRefEv = status.exposure.status.dayRefEv?.formatted(1) ?: "0"
         val nigRefEv = status.exposure.status.nightRefEv?.formatted(1) ?: "0"
+        val isFixed = status.rampMode.equals("fixed", ignoreCase = true)
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -259,13 +339,22 @@ class StatusScreen : Screen {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                VSmallButton(
-                    text = status.rampMode ?: "unknown"
-                )
+                LiveSelectButton(
+                    text = status.rampMode ?: "unknown",
+                    title = "Exposure Mode",
+                    options = liveRampModes,
+                    current = status.rampMode,
+                ) { send(DynamicChange("rampMode", JsonPrimitive(it), 0)) }
 
-                VSmallButton(
-                    text = "OFFSET $rampEv STOPS"
-                )
+                val offsetParam = if (isFixed) "rampEv" else "manualOffsetEv"
+                LiveEditButton(
+                    text = "OFFSET $rampEv STOPS",
+                    title = if (isFixed) "Manual Ramp" else "Exposure Offset",
+                    current = if (isFixed) 0.0 else (status.exposure.status.manualOffsetEv ?: 0.0),
+                    rampable = true,
+                    active = status.dynamicChange[offsetParam]?.toRampInfo(),
+                    currentFrame = status.frames,
+                ) { v, f -> send(DynamicChange(offsetParam, JsonPrimitive(v), f)) }
             }
         }
 
@@ -276,9 +365,14 @@ class StatusScreen : Screen {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            VSmallButton(
-                text = "DAY $dayRefEv"
-            )
+            LiveEditButton(
+                text = "DAY $dayRefEv",
+                title = "Day Exposure Reference",
+                current = status.exposure.status.dayRefEv ?: 0.0,
+                rampable = true,
+                active = status.dynamicChange["dayRefEv"]?.toRampInfo(),
+                currentFrame = status.frames,
+            ) { v, f -> send(DynamicChange("dayRefEv", JsonPrimitive(v), f)) }
 
             Slider(
                 value = status.exposure.status.nightRatio?.toFloat() ?: 0.5f,
@@ -286,9 +380,14 @@ class StatusScreen : Screen {
                 modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
             )
 
-            VSmallButton(
-                text = "NIGHT $nigRefEv"
-            )
+            LiveEditButton(
+                text = "NIGHT $nigRefEv",
+                title = "Night Exposure Reference",
+                current = status.exposure.status.nightRefEv ?: 0.0,
+                rampable = true,
+                active = status.dynamicChange["nightRefEv"]?.toRampInfo(),
+                currentFrame = status.frames,
+            ) { v, f -> send(DynamicChange("nightRefEv", JsonPrimitive(v), f)) }
         }
     }
 
@@ -305,7 +404,7 @@ class StatusScreen : Screen {
     }
 
     @Composable
-    private fun IntervalSection(status: Status, program: Program?) {
+    private fun IntervalSection(status: Status, program: Program?, send: (OutMessage) -> Unit) {
         val intervalSeconds = (status.intervalMs / 1000).formatted(1)
         if (program?.rampMode.equals("fixed", ignoreCase = true)) {
 
@@ -321,13 +420,21 @@ class StatusScreen : Screen {
 
                 Spacer(Modifier.weight(1f))
 
-                VSmallButton(
-                    text = "EDIT"
-                )
+                LiveEditButton(
+                    text = "EDIT",
+                    title = "Interval",
+                    current = status.intervalMs / 1000.0,
+                    rampable = true,
+                    active = status.dynamicChange["interval"]?.toRampInfo(),
+                    currentFrame = status.frames,
+                ) { v, f -> send(DynamicChange("interval", JsonPrimitive(v), f)) }
 
-                VSmallButton(
-                    text = "FIXED"
-                )
+                LiveSelectButton(
+                    text = "FIXED",
+                    title = "Interval Mode",
+                    options = liveIntervalModes,
+                    current = "fixed",
+                ) { send(DynamicChange("intervalMode", JsonPrimitive(it), 0)) }
             }
         } else if (program?.rampMode.equals("auto", ignoreCase = true)) {
             Row(
@@ -341,9 +448,12 @@ class StatusScreen : Screen {
                     style = MaterialTheme.typography.bodyMedium
                 )
 
-                VSmallButton(
-                    text = "AUTO"
-                )
+                LiveSelectButton(
+                    text = "AUTO",
+                    title = "Interval Mode",
+                    options = liveIntervalModes,
+                    current = "auto",
+                ) { send(DynamicChange("intervalMode", JsonPrimitive(it), 0)) }
             }
             program?.let {
                 Row(
@@ -357,9 +467,14 @@ class StatusScreen : Screen {
                         style = MaterialTheme.typography.bodyMedium
                     )
 
-                    VSmallButton(
-                        text = "Edit"
-                    )
+                    LiveEditButton(
+                        text = "Edit",
+                        title = "Day Interval",
+                        current = program.dayInterval,
+                        rampable = true,
+                        active = status.dynamicChange["dayInterval"]?.toRampInfo(),
+                        currentFrame = status.frames,
+                    ) { v, f -> send(DynamicChange("dayInterval", JsonPrimitive(v), f)) }
                 }
 
                 Row(
@@ -373,9 +488,14 @@ class StatusScreen : Screen {
                         style = MaterialTheme.typography.bodyMedium
                     )
 
-                    VSmallButton(
-                        text = "Edit"
-                    )
+                    LiveEditButton(
+                        text = "Edit",
+                        title = "Night Interval",
+                        current = program.nightInterval,
+                        rampable = true,
+                        active = status.dynamicChange["nightInterval"]?.toRampInfo(),
+                        currentFrame = status.frames,
+                    ) { v, f -> send(DynamicChange("nightInterval", JsonPrimitive(v), f)) }
                 }
             }
         }
@@ -384,7 +504,7 @@ class StatusScreen : Screen {
     @Composable
     private fun ServiceControls(bound: Boolean, conn: ConnectionState, onStart: () -> Unit, onStop: () -> Unit) {
         if (!bound) {
-            VButton("Connect") {
+            VSmallButton("Connect") {
                 onStart()
             }
         } else {
@@ -394,7 +514,7 @@ class StatusScreen : Screen {
                 else -> "Stop"
             }
 
-            VButton(connectionString) {
+            VSmallButton(connectionString) {
                 onStop()
             }
         }
@@ -432,7 +552,7 @@ class StatusScreen : Screen {
 
         Surface {
             Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                RampingSection(previewStatus)
+                RampingSection(previewStatus, send = {})
             }
         }
     }
@@ -467,7 +587,7 @@ class StatusScreen : Screen {
 
         Surface {
             Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                IntervalSection(previewStatus, sampleProgram)
+                IntervalSection(previewStatus, sampleProgram, send = {})
             }
         }
     }
@@ -516,7 +636,7 @@ class StatusScreen : Screen {
             Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                 HistogramView(sampleHistogram)
                 Spacer(modifier = Modifier.height(8.dp))
-                TimeLapseStatus(true, connected, intervalStatus.status, sampleProgram)
+                TimeLapseStatus(true, connected, intervalStatus.status, sampleProgram, send = {})
                 Spacer(modifier = Modifier.height(8.dp))
                 ServiceControls(true, ConnectionState.Connecting, {}, {})
                 Spacer(modifier = Modifier.height(8.dp))
@@ -525,3 +645,4 @@ class StatusScreen : Screen {
         }
     }
 }
+

@@ -1,6 +1,7 @@
 package com.github.naixx.viewapp.ui.components
 
 import github.naixx.network.Aperture
+import github.naixx.network.ApertureEntry
 import github.naixx.network.AutoSettings
 import github.naixx.network.Axes
 import github.naixx.network.CameraDetails
@@ -11,12 +12,20 @@ import github.naixx.network.ExposureStatus
 import github.naixx.network.Focus
 import github.naixx.network.Histogram
 import github.naixx.network.ISO
+import github.naixx.network.ISOEntry
 import github.naixx.network.Program
 import github.naixx.network.Shutter
+import github.naixx.network.ShutterEntry
+import github.naixx.network.ProgramDraft
 import github.naixx.network.Status
 import github.naixx.network.Sunrise
 import github.naixx.network.Sunset
 import github.naixx.network.TimelapseClipInfo
+import github.naixx.network.programJson
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonObject
 
 // Create a sample TimelapseClipInfo for preview
 val sampleProgram = Program(
@@ -33,11 +42,11 @@ val sampleProgram = Program(
     nightLuminance = -1.3,
     dayLuminance = 0.0,
     isoMax = -3.0,
-    isoMin = 0,
+    isoMin = 0.0,
     rampParameters = "S=A=I",
-    apertureMax = -1,
-    apertureMin = -7,
-    manualAperture = -6,
+    apertureMax = -1.0,
+    apertureMin = -7.0,
+    manualAperture = -6.0,
     hdrCount = 0,
     hdrStops = 1,
     trackingTarget = "moon",
@@ -52,9 +61,34 @@ val cameraSettings = CameraSettings(
     aperture = "8",
     iso = "100",
     details = CameraDetails(
-        shutter = Shutter("1/640", 3.333, code = 66176, duration_ms = 100, cameraName = "1/640"),
-        aperture = Aperture("8", -2.0),
-        iso = ISO("100", 0.0)
+        shutter = Shutter(
+            "1/640", 3.333, code = 66176, duration_ms = 100, cameraName = "1/640",
+            list = listOf(
+                ShutterEntry("1/2000", 5.0, 1, 0, "1/2000"),
+                ShutterEntry("1/640", 3.33, 2, 1, "1/640"),
+                ShutterEntry("1/100", 1.0, 3, 10, "1/100"),
+                ShutterEntry("1/30", -0.7, 4, 33, "1/30"),
+                ShutterEntry("1\"", -5.0, 5, 1000, "1\""),
+            )
+        ),
+        aperture = Aperture(
+            "8", -2.0,
+            list = listOf(
+                ApertureEntry("2.8", -4.0, 1, "2.8"),
+                ApertureEntry("5.6", -2.0, 2, "5.6"),
+                ApertureEntry("8", -1.0, 3, "8"),
+                ApertureEntry("16", 1.0, 4, "16"),
+            )
+        ),
+        iso = ISO(
+            "100", 0.0,
+            list = listOf(
+                ISOEntry("100", 0.0, 1, "100"),
+                ISOEntry("400", 2.0, 2, "400"),
+                ISOEntry("1600", 4.0, 3, "1600"),
+                ISOEntry("6400", 6.0, 4, "6400"),
+            )
+        )
     ),
     battery = 0.0,
     focusPos = 0.0
@@ -130,6 +164,20 @@ val sampleClipInfo = TimelapseClipInfo(
     thumbnail = "/root/time-lapse/tl-329/cam-1-00001.jpg",
     frames = 3786
 )
+
+// Raw device program JSON (the inner `program` object of a timelapseProgram frame), for Program tab
+// previews. Driven through ProgramDraft exactly like a live program.
+val sampleProgramRaw: JsonObject =
+    Json.Default.parseToJsonElement(programJson).jsonObject["program"]!!.jsonObject
+
+val sampleFixedRaw: JsonObject =
+    ProgramDraft(sampleProgramRaw).set("rampMode", "fixed").set("intervalMode", "fixed").json
+
+val sampleEclipseRaw: JsonObject =
+    ProgramDraft(sampleProgramRaw)
+        .set("rampMode", "eclipse")
+        .set("exposurePlans", sampleProgramRaw["savedExposurePlans"] ?: JsonArray(emptyList()))
+        .json
 
 // Sample histogram for previews
 val sampleHistogram = Histogram(List(256) {

@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import java.util.Properties
 
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
@@ -18,4 +20,14 @@ if (secretsFile.exists()) {
 } else {
     logger.warn("No secrets.properties found. Create this file in project root to store credentials.")
     logger.warn("Example content: email=your_email@example.com\\npassword=your_password")
+}
+
+allprojects {
+    tasks.withType<KotlinCompile>().configureEach {
+        compilerOptions {
+            freeCompilerArgs.add("-Xcollection-literals")
+            freeCompilerArgs.add("-XXLanguage:+ExplicitBackingFields")
+            jvmTarget.set(JvmTarget.JVM_11)
+        }
+    }
 }

@@ -1,6 +1,7 @@
 package com.github.naixx.viewapp.ui
 
 import android.content.Context
+import android.util.Base64
 import androidx.lifecycle.*
 import com.github.naixx.compose.*
 import com.github.naixx.logger.LL
@@ -66,6 +67,26 @@ class TimelapseViewModel(private val clip: Clip) : ViewModel(), KoinComponent {
 
             Pair(downloadedIndices.size, totalFrames)
         }
+    }
+
+    /**
+     * Ingest a frame that arrived live (as a Thumbnail) during a running time-lapse: cache it to disk
+     * (if the foreground service hasn't already), add it to [downloadedFrames] and advance to it so it
+     * shows in the player immediately. Auto-follows the newest frame unless the user has scrubbed back.
+     */
+    suspend fun addLiveFrame(context: Context, frameIndex: Int, imageBase64: String) {
+        withContext(Dispatchers.IO) {
+            val dir = File(context.filesDir, "timelapses/${clip.name.lowercase()}").apply { mkdirs() }
+            val file = File(dir, "frame_$frameIndex.jpg")
+            if (!file.exists()) {
+                runCatching { file.writeBytes(Base64.decode(imageBase64, Base64.DEFAULT)) }
+                    .onFailure { LL.e("Error caching live frame: ${it.message}") }
+            }
+        }
+        val prevLatest = downloadedFrames.value.maxOrNull() ?: 0
+        val followLatest = currentFrameIndex.value >= prevLatest
+        downloadedFrames.value = (downloadedFrames.value + frameIndex).distinct().sorted()
+        if (followLatest) currentFrameIndex.value = frameIndex
     }
 
     /**

@@ -1,6 +1,8 @@
 package com.github.naixx.viewapp.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -14,12 +16,14 @@ import kotlinx.coroutines.launch
 fun VSmallButton(
     text: String,
     modifier: Modifier = Modifier,
+    border: BorderStroke? = null,
     coroutineScope: CoroutineScope = rememberCoroutineScope(),
     onClick: suspend () -> Unit = {}
 ) {
     OutlinedCard(
         modifier = modifier,
-        onClick = { coroutineScope.launch { onClick() } }
+        onClick = { coroutineScope.launch { onClick() } },
+        border = border ?: CardDefaults.outlinedCardBorder()
     ) {
         Text(
             text = text,

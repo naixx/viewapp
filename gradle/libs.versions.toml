@@ -28,7 +28,7 @@ junit = "4.13.2"
 koalaplotCore = "0.6.4"
 
 kotlinxCollectionsImmutable = "0.3.8"
-kotlinxDatetime = "0.6.0-SERIALIZE-LOCAL" #we use specially compiled version
+kotlinxDatetime = "0.8.0" #we use specially compiled version
 kottie = "1.9.6"
 ktorfit = "2.7.5"
 

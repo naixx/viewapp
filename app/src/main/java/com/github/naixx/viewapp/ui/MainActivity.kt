@@ -24,6 +24,7 @@ import com.github.naixx.viewapp.WebSocketService
 import com.github.naixx.viewapp.WebSocketService.Companion.ACTION_STOP_SERVICE
 import com.github.naixx.viewapp.ui.components.LocalSuperNavigator
 import com.github.naixx.viewapp.ui.theme.ViewAppTheme
+import com.github.naixx.viewapp.utils.AppForeground
 import com.github.naixx.viewapp.utils.ClipMapper
 import com.github.naixx.viewapp.utils.ToastMessageHandler
 import github.naixx.network.*
@@ -178,6 +179,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        AppForeground.isForeground = true
+    }
+
+    override fun onStop() {
+        super.onStop()
+        AppForeground.isForeground = false
     }
 
     private fun bind() {

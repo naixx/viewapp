@@ -22,11 +22,13 @@ fun VButton(
     imageVector: ImageVector? = null,
     colors: ButtonColors = ButtonDefaults.buttonColors(),
     coroutineScope: CoroutineScope = rememberCoroutineScope(),
+    modifier: Modifier = Modifier,
     onClick: suspend () -> Unit
 ) {
     Button(
         onClick = { coroutineScope.launch { onClick() } },
-        colors = colors
+        colors = colors,
+        modifier = modifier
     ) {
         imageVector?.let {
             Icon(

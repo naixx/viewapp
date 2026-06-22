@@ -18,22 +18,22 @@ import com.github.naixx.compose.painter
 import com.github.naixx.viewapp.ui.theme.ViewAppTheme
 import com.github.naixx.viewapp.utils.activityViewModel
 import github.naixx.network.ConnectionState
+import github.naixx.network.ConnectionState.Connecting
 
 object MainScreen : Screen {
 
     @Composable
     override fun Content() {
-        MainScreen()
+        val viewModel = activityViewModel<MainViewModel>()
+        val conn by viewModel.connectionState.collectAsState()
+
+        MainScreen(conn)
     }
 }
 
 @Composable
-fun MainScreen(
+fun MainScreen(conn: ConnectionState) {
 
-) {
-
-    val viewModel = activityViewModel<MainViewModel>()
-    val conn by viewModel.connectionState.collectAsState()
 
     val tabs = listOf(
         StatusTab(listOf()),
@@ -133,6 +133,6 @@ fun GreetingPreview() {
 @Composable
 fun PreviewMainScreen() {
     ViewAppTheme {
-        MainScreen()
+        MainScreen(Connecting)
     }
 }

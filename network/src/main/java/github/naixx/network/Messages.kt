@@ -2,7 +2,7 @@ package github.naixx.network
 
 import github.naixx.network.internal.DynamicListSerializer
 import kotlinx.serialization.*
-import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.descriptors.*
 import kotlinx.serialization.encoding.*
 import kotlinx.serialization.json.*
 
@@ -29,7 +29,7 @@ data class Pong(override val type: String) : BaseMessage()
 
 @Serializable
 @SerialName("intervalometerError")
-data class IntervalometerError(override val type: String) : BaseMessage()
+data class IntervalometerError(val msg: String? = null, override val type: String) : BaseMessage()
 
 @Serializable
 @SerialName("battery")
@@ -47,6 +47,33 @@ data class Session(val session: String) : OutMessage("auth")
 
 @Serializable
 data class UnknownMessage(val rawString: String) : OutMessage("unknown")
+
+// --- Program control (start/stop/edit a timelapse) ---
+// These carry the program as a raw JsonObject (not the typed Program) so that fields ViewApp does
+// not model — motion `axes`, `keyframes`, `coords`, etc. — survive the round-trip untouched.
+// See docs/ORIGINAL_APP.md §8 and ProgramEdit.kt (Program.overlayOnto).
+
+@Serializable
+data class Run(val program: JsonObject, val date: Long) : OutMessage("run")
+
+@Serializable
+class Stop : OutMessage("stop")
+
+@Serializable
+data class SaveProgram(val program: JsonObject) : OutMessage("save-program")
+
+@Serializable
+data class ReconfigureProgram(val program: JsonObject) : OutMessage("reconfigureProgram")
+
+@Serializable
+data class UpdateProgram(val updates: JsonObject) : OutMessage("updateProgram")
+
+@Serializable
+data class DynamicChange(
+    val parameter: String,
+    val newValue: JsonElement,
+    val frames: Int
+) : OutMessage("dynamicChange")
 
 //timelapse messages
 @Serializable
@@ -67,11 +94,44 @@ data class Histogram(
     val histogram: List<Int>, override val type: String
 ) : BaseMessage()
 
-@Serializable
-@SerialName("timelapseProgram")
+// Custom-serialized so we keep the device's program as a raw JsonObject (`raw`) alongside the typed
+// `Program`. Outgoing run/save/reconfigure messages send an edited copy of `raw` (see
+// Program.overlayOnto in ProgramEdit.kt), preserving fields ViewApp does not model.
+@Serializable(with = TimelapseProgramSerializer::class)
 data class TimelapseProgram(
-    val program: Program, override val type: String
+    val program: Program,
+    val raw: JsonObject = JsonObject(emptyMap()),
+    override val type: String = "timelapseProgram"
 ) : BaseMessage()
+
+object TimelapseProgramSerializer : KSerializer<TimelapseProgram> {
+
+    private val programSerializer = Program.serializer()
+
+    override val descriptor: SerialDescriptor = buildClassSerialDescriptor("timelapseProgram") {
+        element("program", programSerializer.descriptor)
+        element<String>("type")
+    }
+
+    override fun deserialize(decoder: Decoder): TimelapseProgram {
+        val input = decoder as? JsonDecoder
+            ?: throw SerializationException("TimelapseProgram can be decoded only from Json")
+        val obj = input.decodeJsonElement().jsonObject
+        val rawProgram = obj["program"]?.jsonObject ?: JsonObject(emptyMap())
+        val program = input.json.decodeFromJsonElement(programSerializer, rawProgram)
+        val type = obj["type"]?.jsonPrimitive?.contentOrNull ?: "timelapseProgram"
+        return TimelapseProgram(program, rawProgram, type)
+    }
+
+    override fun serialize(encoder: Encoder, value: TimelapseProgram) {
+        val output = encoder as? JsonEncoder
+            ?: throw SerializationException("TimelapseProgram can be encoded only to Json")
+        output.encodeJsonElement(buildJsonObject {
+            put("type", value.type)
+            put("program", value.raw)
+        })
+    }
+}
 
 @Serializable
 @SerialName("camera")
@@ -600,12 +660,14 @@ data class Program(
     val destination: String,
     val nightLuminance: Double,
     val dayLuminance: Double,
-    val isoMax: Double,
-    val isoMin: Int,
+    // Exposure-ramping EV limits are continuous (and the app may write fractional values), so they
+    // are Double; nullable because the user can choose "No limit" (null), which the device echoes back.
+    val isoMax: Double? = null,
+    val isoMin: Double? = null,
     val rampParameters: String,
-    val apertureMax: Int,
-    val apertureMin: Int,
-    val manualAperture: Int,
+    val apertureMax: Double? = null,
+    val apertureMin: Double? = null,
+    val manualAperture: Double? = null,
     val hdrCount: Int,
     val hdrStops: Int,
     @Serializable(with = SavedExposurePlanSerializer::class)
@@ -642,14 +704,21 @@ data class Program(
 
 object SavedExposurePlanSerializer : DynamicListSerializer<SavedExposurePlan>(SavedExposurePlan.serializer())
 
+// `DynamicListSerializer` decodes plan elements with the strict `Json.Default`, so we must
+// explicitly tolerate per-mode keys (e.g. dayInterval/nightInterval on auto plans).
+@OptIn(ExperimentalSerializationApi::class)
+@JsonIgnoreUnknownKeys
 @Serializable
 data class SavedExposurePlan(
     val name: String,
-    val start: String,
+    // `start` is a string ISO date for the user's own plans but a numeric epoch-ms for
+    // firmware-computed eclipse plans, so it must accept either shape.
+    val start: JsonElement,
     val mode: String,
-    val hdrCount: Int,
-    val intervalMode: String,
-    val interval: Int,
+    // The remaining fields vary by plan mode (preset/auto/locked), so they are all optional.
+    val hdrCount: Int? = null,
+    val intervalMode: String? = null,
+    val interval: Int? = null,
     val shutter: Int? = null,
     val iso: Int? = null,
     val aperture: Int? = null
@@ -705,7 +774,9 @@ data class Status(
     val tiltDiff: Int,
     val trackingPanEnabled: Boolean,
     val trackingTiltEnabled: Boolean,
-    //val dynamicChange: Map<String, @Contextual Any?>,
+    // Active live (dynamicChange) ramps, keyed by parameter name (manualOffsetEv, interval, …).
+    // Present only while a parameter is ramping; the device deletes the entry when it completes.
+    val dynamicChange: Map<String, DynamicChangeEntry> = emptyMap(),
     val trackingTilt: Int,
     val trackingPan: Int,
     val latitude: Double? = null,
@@ -722,6 +793,17 @@ data class Status(
 @Serializable
 data class AutoSettings(
     val paddingTimeMs: Double
+)
+
+// One active live ramp (a `dynamicChange` entry): the parameter is interpolated from [startVal] to
+// [endVal] between [startFrame] and [endFrame]; [lastVal] is the value applied on the latest frame.
+@Serializable
+data class DynamicChangeEntry(
+    val startFrame: Int? = null,
+    val endFrame: Int? = null,
+    val startVal: Double? = null,
+    val endVal: Double? = null,
+    val lastVal: Double? = null,
 )
 
 @Serializable

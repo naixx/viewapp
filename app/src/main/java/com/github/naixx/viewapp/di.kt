@@ -10,5 +10,6 @@ import org.koin.dsl.module
 val appModule = module {
     singleOf<StorageProvider>(::PrefsStorage)
     viewModelOf(::MainViewModel)
+    viewModelOf(::ProgramViewModel)
     viewModel { (clip: Clip) -> TimelapseViewModel(clip) }
 }

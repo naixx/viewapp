@@ -10,6 +10,8 @@ import android.util.Base64
 import androidx.core.app.*
 import com.github.naixx.logger.LL
 import com.github.naixx.viewapp.network.generateLocalServer
+import com.github.naixx.viewapp.ui.MainActivity
+import com.github.naixx.viewapp.utils.AppForeground
 import com.github.naixx.viewapp.utils.Prefs
 import github.naixx.network.*
 import io.ktor.client.plugins.websocket.*
@@ -121,9 +123,40 @@ class WebSocketService : Service() {
     }
 
     private fun processMessage(message: BaseMessage) {
-        if (message is Thumbnail) {
-            saveThumbnail(message)
+        when (message) {
+            is Thumbnail -> saveThumbnail(message)
+            is IntervalometerError ->
+                if (!AppForeground.isForeground)
+                    notifyError(message.msg ?: "An error occurred during capture")
+
+            else -> {}
         }
+    }
+
+    private var errorNotificationId = 1000
+
+    /** Post a heads-up system notification for a capture error (only while the app is backgrounded). */
+    private fun notifyError(text: String) {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+            != PackageManager.PERMISSION_GRANTED
+        ) return
+
+        val openIntent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val contentPending = PendingIntent.getActivity(this, 1, openIntent, PendingIntent.FLAG_IMMUTABLE)
+
+        val notification = NotificationCompat.Builder(this, "ErrorsChannel")
+            .setContentTitle("Time-lapse error")
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setSmallIcon(R.drawable.stat_notify_error)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setAutoCancel(true)
+            .setContentIntent(contentPending)
+            .build()
+        notificationManager.notify(errorNotificationId++, notification)
     }
 
     private fun saveThumbnail(thumbnail: Thumbnail) {
