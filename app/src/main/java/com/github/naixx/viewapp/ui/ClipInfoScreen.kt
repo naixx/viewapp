@@ -46,12 +46,15 @@ class ClipInfoScreen(val clip: Clip) : Screen {
         val downloadedFrames by timelapseViewModel.downloadedFrames.collectAsState()
         val currentFrameIndex by timelapseViewModel.currentFrameIndex.collectAsState()
         val isPlaying by timelapseViewModel.isPlaying.collectAsState()
+        val isDownloading by timelapseViewModel.isDownloading.collectAsState()
         val exportProgress by timelapseViewModel.exportProgress.collectAsState()
 
         val frames = downloadedFrames
         val progress = remember(frames) {
             if (clip.frames > 0 && frames.isNotEmpty()) {
-                frames.size.toFloat() / clip.frames
+                // Clamp: during a running time-lapse the live frame count can exceed the stale
+                // clip.frames, which would otherwise push progress past 1f and hide the controls.
+                (frames.size.toFloat() / clip.frames).coerceAtMost(1f)
             } else if (frames.isNotEmpty()) {
                 1f // If we don't know total frames but have some downloaded
             } else {
@@ -134,6 +137,7 @@ class ClipInfoScreen(val clip: Clip) : Screen {
                     frames = frames,
                     progress = progress,
                     currentFrameIndex = currentFrameIndex,
+                    isDownloading = isDownloading,
                     context = context,
                     getFrameFile = { index -> timelapseViewModel.getFrameFile(context, index) }
                 )
@@ -165,7 +169,7 @@ class ClipInfoScreen(val clip: Clip) : Screen {
                 progress = progress,
                 frames = frames,
                 isPlaying = isPlaying,
-                isDownloading = timelapseViewModel.isDownloading(),
+                isDownloading = isDownloading,
                 onPlayPause = { timelapseViewModel.togglePlayback(!isPlaying) },
                 onReset = { timelapseViewModel.setCurrentFrame(1) },
                 onDownload = { timelapseViewModel.downloadFrames(context, conn) },
@@ -224,6 +228,7 @@ fun TimelapsePlayer(
     frames: List<Int>,
     progress: Float,
     currentFrameIndex: Int,
+    isDownloading: Boolean = false,
     context: android.content.Context,
     getFrameFile: (Int) -> java.io.File?
 ) {
@@ -254,9 +259,11 @@ fun TimelapsePlayer(
             }
         }
 
-        if (progress > 0f && progress < 1f) {
+        if (isDownloading) {
+            // Only overlay the spinner while actively downloading. Once stopped, show the frames so a
+            // partial download stays playable instead of being covered or blanked out.
             DownloadProgressOverlay(progress, frames.size)
-        } else if (progress < 1f) {
+        } else if (frames.isEmpty()) {
             Text(
                 text = "Press Download to begin",
                 color = Color.White
@@ -346,42 +353,39 @@ fun PlayerControls(
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (progress > 0f && progress < 1f) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (!isDownloading)
+        when {
+            // A download is in flight — always offer Cancel, even before the first frame lands.
+            isDownloading -> {
+                VButton(
+                    text = "Cancel",
+                    imageVector = Icons.Default.Close,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error
+                    )
+                ) { onCancelDownload() }
+            }
+            // Nothing downloaded yet.
+            frames.isEmpty() -> {
+                VButton(
+                    text = "Download Frames",
+                    imageVector = Icons.Default.Download
+                ) { onDownload() }
+            }
+            // Frames available — always allow playback. If the download is incomplete (e.g. stopped),
+            // also offer Resume so the user can fetch the rest without losing what they have.
+            else -> {
+                VButton(
+                    text = if (isPlaying) "Pause" else "Play",
+                    imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow
+                ) { onPlayPause() }
+                if (progress < 1f) {
+                    Spacer(modifier = Modifier.width(8.dp))
                     VButton(
                         text = "Resume Download",
-                        imageVector = Icons.Default.PlayArrow
-                    ) {
-                        onDownload()
-                    }
-                else
-                    VButton(
-                        text = "Cancel",
-                        imageVector = Icons.Default.Close,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.error
-                        )
-                    ) { onCancelDownload() }
+                        imageVector = Icons.Default.Download
+                    ) { onDownload() }
+                }
             }
-        } else if (frames.isEmpty()) {
-            VButton(
-                text = "Download Frames",
-                imageVector = Icons.Default.Download
-            ) {
-                onDownload()
-            }
-        } else if (progress == 1f) {
-            VButton(
-                text = if (isPlaying) "Pause" else "Play",
-                imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow
-            ) { onPlayPause() }
-
-            /* Spacer(modifier = Modifier.width(16.dp))
-
-             VButton(
-                 text = "Reset"
-             ) { onReset() }*/
         }
     }
 }

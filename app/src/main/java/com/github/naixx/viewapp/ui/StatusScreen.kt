@@ -96,11 +96,14 @@ class StatusScreen : Screen {
         val downloadedFrames by timelapseViewModel?.downloadedFrames?.collectAsState() ?: remember { mutableStateOf(emptyList()) }
         val currentFrameIndex by timelapseViewModel?.currentFrameIndex?.collectAsState() ?: remember { mutableStateOf(0) }
         val isPlaying by timelapseViewModel?.isPlaying?.collectAsState() ?: remember { mutableStateOf(false) }
+        val isDownloading by timelapseViewModel?.isDownloading?.collectAsState() ?: remember { mutableStateOf(false) }
 
         val frames = downloadedFrames
         val progress = remember(frames, clip) {
             if (clip != null && clip.frames > 0 && frames.isNotEmpty()) {
-                frames.size.toFloat() / clip.frames
+                // Clamp: live frames can outpace the stale clip.frames; without this progress goes
+                // past 1f and PlayerControls renders no button at all.
+                (frames.size.toFloat() / clip.frames).coerceAtMost(1f)
             } else if (frames.isNotEmpty()) {
                 1f
             } else {
@@ -155,6 +158,7 @@ class StatusScreen : Screen {
                         frames = frames,
                         progress = progress,
                         currentFrameIndex = currentFrameIndex,
+                        isDownloading = isDownloading,
                         context = context,
                         getFrameFile = { index -> timelapseViewModel.getFrameFile(context, index) }
                     )
@@ -174,7 +178,7 @@ class StatusScreen : Screen {
                         progress = progress,
                         frames = frames,
                         isPlaying = isPlaying,
-                        isDownloading = timelapseViewModel.isDownloading(),
+                        isDownloading = isDownloading,
                         onPlayPause = { timelapseViewModel.togglePlayback(!isPlaying) },
                         onReset = { timelapseViewModel.setCurrentFrame(1) },
                         onDownload = { timelapseViewModel.downloadFrames(context, conn) },

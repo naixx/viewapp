@@ -15,11 +15,25 @@ import org.koin.core.component.*
 import org.koin.core.parameter.parametersOf
 import java.io.File
 
-class TimelapseViewModel(private val clip: Clip) : ViewModel(), KoinComponent {
+/**
+ * How many consecutive fully-failed batches we tolerate before aborting a download. On a flaky
+ * field connection every request blocks up to the HTTP timeout, so without this the download would
+ * grind through every remaining batch with no progress and no feedback.
+ */
+private const val MAX_CONSECUTIVE_FAILED_BATCHES = 3
+
+class TimelapseViewModel(
+    private val clip: Clip,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+) : ViewModel(), KoinComponent {
 
     val downloadedFrames: MutableStateFlow<List<Int>> = MutableStateFlow(emptyList())
     val currentFrameIndex: MutableStateFlow<Int> = MutableStateFlow(0)
     val isPlaying: MutableStateFlow<Boolean> = MutableStateFlow(false)
+
+    /** Observable download state so the UI always reflects an in-flight download, even before any frame lands. */
+    val isDownloading: StateFlow<Boolean>
+        field = MutableStateFlow(false)
 
     val exportProgress: MutableStateFlow<Float> = MutableStateFlow(0f)
 
@@ -40,16 +54,11 @@ class TimelapseViewModel(private val clip: Clip) : ViewModel(), KoinComponent {
         )
 
     /**
-     * Returns whether frames are currently being downloaded
-     */
-    fun isDownloading(): Boolean = downloadJob?.isActive == true
-
-    /**
      * Checks for existing frames without starting download
      * Returns Pair(downloadedCount, totalFrames)
      */
     suspend fun checkExistingFrames(context: Context, totalFrames: Int): Pair<Int, Int> {
-        return withContext(Dispatchers.IO) {
+        return withContext(ioDispatcher) {
             val cacheDir = File(context.filesDir, "timelapses/${clip.name.lowercase()}")
             val downloadedIndices = (1..totalFrames).filter { i ->
                 File(cacheDir, "frame_$i.jpg").exists()
@@ -75,7 +84,7 @@ class TimelapseViewModel(private val clip: Clip) : ViewModel(), KoinComponent {
      * shows in the player immediately. Auto-follows the newest frame unless the user has scrubbed back.
      */
     suspend fun addLiveFrame(context: Context, frameIndex: Int, imageBase64: String) {
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher) {
             val dir = File(context.filesDir, "timelapses/${clip.name.lowercase()}").apply { mkdirs() }
             val file = File(dir, "frame_$frameIndex.jpg")
             if (!file.exists()) {
@@ -108,66 +117,90 @@ class TimelapseViewModel(private val clip: Clip) : ViewModel(), KoinComponent {
      * Download all frames for the current clip
      */
     fun downloadFrames(context: Context, connectionState: ConnectionState?) {
-        if (isPlaying.value || isDownloading()) return
+        if (isPlaying.value || isDownloading.value) return
 
+        // Check the connection up front so a tap while disconnected gives immediate feedback instead
+        // of silently launching a coroutine that fails inside.
+        val state = connectionState as? ConnectionState.Connected
+        if (state == null) {
+            EventBus.error("Not connected to a view server")
+            return
+        }
+
+        isDownloading.value = true
         downloadJob = viewModelScope.launch {
+            val thisJob = coroutineContext[Job]
             try {
                 val cacheDir = File(context.filesDir, "timelapses/${clip.name.lowercase()}").apply { mkdirs() }
+                val viewApi: ViewApi = get { parametersOf(state.address.fromUrl) }
+                val info = viewApi.clipInfo(clip.name).also {
+                    timelapseClipInfoDao.insertTimelapseClipInfo(listOf(it))
+                }
 
-                (connectionState as? ConnectionState.Connected)?.let { state ->
-                    val viewApi: ViewApi = get { parametersOf(state.address.fromUrl) }
-                    val info = viewApi.clipInfo(clip.name).also {
-                        timelapseClipInfoDao.insertTimelapseClipInfo(listOf(it))
-                    }
+                totalFrames = info.frames ?: return@launch
 
-                    totalFrames = info.frames ?: return@let
+                val downloadedIndices = (1..totalFrames).filter { i ->
+                    File(cacheDir, "frame_$i.jpg").exists()
+                }.toMutableList()
 
-                    val downloadedIndices = (1..totalFrames).filter { i ->
-                        File(cacheDir, "frame_$i.jpg").exists()
-                    }.toMutableList()
+                downloadedFrames.value = downloadedIndices.sorted()
 
+                val framesToDownload = (1..totalFrames) - downloadedIndices
+                if (framesToDownload.isEmpty()) return@launch
+
+                val batchSize = 10
+                var consecutiveFailedBatches = 0
+                framesToDownload.chunked(batchSize).forEach { batch ->
+                    if (!isActive) return@launch
+
+                    val results = batch.map { i ->
+                        async(ioDispatcher) {
+                            try {
+                                val frameFile = File(cacheDir, "frame_$i.jpg")
+                                if (!frameFile.exists()) {
+                                    val frameBytes = viewApi.download(
+                                        "${clip.name}/cam-1-${i.toString().padStart(5, '0')}.jpg"
+                                            .lowercase()
+                                    )
+                                    frameFile.writeBytes(frameBytes)
+                                }
+                                i
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                LL.e("Failed to download frame $i: ${e.message}")
+                                null
+                            }
+                        }
+                    }.awaitAll().filterNotNull()
+
+                    downloadedIndices.addAll(results)
                     downloadedFrames.value = downloadedIndices.sorted()
 
-                    val framesToDownload = (1..totalFrames) - downloadedIndices
-                    if (framesToDownload.isEmpty()) return@launch
-
-                    val batchSize = 10
-                    framesToDownload.chunked(batchSize).forEach { batch ->
-                        if (!isActive) {
-                            downloadedFrames.value = downloadedIndices.sorted()
+                    if (results.isEmpty()) {
+                        // A whole batch failed — bail out instead of grinding through every remaining
+                        // batch (each request blocking on the HTTP timeout) with no progress or feedback.
+                        if (++consecutiveFailedBatches >= MAX_CONSECUTIVE_FAILED_BATCHES) {
+                            EventBus.error("Download failed — check the connection to the VIEW and try again")
                             return@launch
                         }
-
-                        val results = batch.map { i ->
-                            async(Dispatchers.IO) {
-                                try {
-                                    val frameFile = File(cacheDir, "frame_$i.jpg")
-                                    if (!frameFile.exists()) {
-                                        val frameBytes = viewApi.download(
-                                            "${clip.name}/cam-1-${i.toString().padStart(5, '0')}.jpg"
-                                                .lowercase()
-                                        )
-                                        frameFile.writeBytes(frameBytes)
-                                    }
-                                    i
-                                } catch (e: Exception) {
-                                    LL.e("Failed to download frame $i: ${e.message}")
-                                    null
-                                }
-                            }
-                        }.awaitAll().filterNotNull()
-
-                        downloadedIndices.addAll(results)
-                        downloadedFrames.value = downloadedIndices.sorted()
+                    } else {
+                        consecutiveFailedBatches = 0
                     }
-                } ?: run {
-                    EventBus.error("Not connected to a view server")
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                LL.d("Download error: ${e.message}")
-                downloadedFrames.value = emptyList()
+                LL.e("Download error: ${e.message}")
+                EventBus.error("Download failed: ${e.message}")
+                // Keep whatever frames already landed so the user can resume rather than start over.
             } finally {
-                downloadJob = null
+                // Only clear shared state if we're still the active job — a newer download may have
+                // replaced us after a cancel/restart, and we must not clobber its state.
+                if (downloadJob === thisJob) {
+                    downloadJob = null
+                    isDownloading.value = false
+                }
             }
         }
     }
@@ -178,7 +211,9 @@ class TimelapseViewModel(private val clip: Clip) : ViewModel(), KoinComponent {
     fun stopDownload() {
         downloadJob?.cancel()
         downloadJob = null
-        downloadedFrames.value = emptyList()
+        isDownloading.value = false
+        // Keep the frames already fetched so the user can still play them (and resume later) instead
+        // of being left with a blank screen.
     }
 
     /**
@@ -217,7 +252,7 @@ class TimelapseViewModel(private val clip: Clip) : ViewModel(), KoinComponent {
         setCurrentFrame(0)
 
         // Delete all cached frames
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             val cacheDir = File(context.filesDir, "timelapses/${clip.name.lowercase()}")
             if (cacheDir.exists()) {
                 cacheDir.listFiles()?.forEach { file ->
@@ -233,7 +268,7 @@ class TimelapseViewModel(private val clip: Clip) : ViewModel(), KoinComponent {
      * Gets the size of the cache for this clip
      */
     suspend fun getCacheSize(context: Context): Long {
-        return withContext(Dispatchers.IO) {
+        return withContext(ioDispatcher) {
             val cacheDir = File(context.filesDir, "timelapses/${clip.name.lowercase()}")
             var size = 0L
             if (cacheDir.exists()) {

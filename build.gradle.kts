@@ -27,7 +27,7 @@ allprojects {
         compilerOptions {
             freeCompilerArgs.add("-Xcollection-literals")
             freeCompilerArgs.add("-XXLanguage:+ExplicitBackingFields")
-            jvmTarget.set(JvmTarget.JVM_11)
+            jvmTarget.set(JvmTarget.JVM_17)
         }
     }
 }
