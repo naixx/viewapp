@@ -1,19 +1,70 @@
 package com.github.naixx.viewapp.ui
 
-import androidx.compose.foundation.*
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.*
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import coil3.compose.AsyncImage
-import com.github.naixx.viewapp.ui.components.*
-import com.github.naixx.viewapp.utils.*
-import github.naixx.network.*
+import com.github.naixx.viewapp.ui.components.LiveEditButton
+import com.github.naixx.viewapp.ui.components.LiveSelectButton
+import com.github.naixx.viewapp.ui.components.OnConnectedEffect
+import com.github.naixx.viewapp.ui.components.Opt
+import com.github.naixx.viewapp.ui.components.RampInfo
+import com.github.naixx.viewapp.ui.components.TimelapsePlayer
+import com.github.naixx.viewapp.ui.components.VButton
+import com.github.naixx.viewapp.ui.components.VSmallButton
+import com.github.naixx.viewapp.ui.components.cameraSettings
+import com.github.naixx.viewapp.ui.components.sampleHistogram
+import com.github.naixx.viewapp.ui.components.sampleProgram
+import com.github.naixx.viewapp.ui.components.status
+import com.github.naixx.viewapp.utils.activityViewModel
+import com.github.naixx.viewapp.utils.formatted
+import github.naixx.network.Battery
+import github.naixx.network.CameraSettings
+import github.naixx.network.Clip
+import github.naixx.network.ConnectedMessage
+import github.naixx.network.ConnectionState
+import github.naixx.network.DynamicChange
+import github.naixx.network.DynamicChangeEntry
+import github.naixx.network.Get
+import github.naixx.network.Histogram
+import github.naixx.network.IntervalometerStatus
+import github.naixx.network.OutMessage
+import github.naixx.network.Program
+import github.naixx.network.SettingsMessage
+import github.naixx.network.Status
+import github.naixx.network.Stop
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.JsonPrimitive
 import org.koin.androidx.compose.koinViewModel
@@ -72,7 +123,10 @@ class StatusScreen : Screen {
             }
         }
         val timelapseViewModel = clip?.let {
-            koinViewModel<TimelapseViewModel>(parameters = { parametersOf(it) })
+            // Key by timelapse name so a new capture (tl-415) gets a fresh VM instead of reusing the
+            // previous one (tl-414): koinViewModel caches by key, and without one the parametersOf(clip)
+            // change is ignored, leaving the old clip's directory wired up for reads/writes.
+            koinViewModel<TimelapseViewModel>(key = it.name, parameters = { parametersOf(it) })
         }
         val context = LocalContext.current
 
@@ -111,12 +165,19 @@ class StatusScreen : Screen {
             }
         }
 
+        if (conn is ConnectionState.Connected && timelapseViewModel!=null)
+            LaunchedEffect(c) {
+                timelapseViewModel.downloadFrames(context, conn)
+            }
+
 
         LaunchedEffect(isPlaying, currentFrameIndex, frames.size) {
             if (isPlaying && frames.isNotEmpty() && timelapseViewModel != null) {
                 while (isPlaying) {
                     delay(33)
-                    val nextFrame = if (currentFrameIndex >= frames.size) 1 else currentFrameIndex + 1
+                    // Advance by position in the (possibly gappy) downloaded set, wrapping at the end.
+                    val pos = frames.indexOf(currentFrameIndex)
+                    val nextFrame = if (pos < 0 || pos >= frames.size - 1) frames.first() else frames[pos + 1]
                     timelapseViewModel.setCurrentFrame(nextFrame)
                 }
             }
@@ -154,35 +215,23 @@ class StatusScreen : Screen {
 
             if (intervalStatus?.status?.running == true) {
                 if (clip != null && timelapseViewModel != null) {
+                    // No download/resume controls while capturing: frames stream to disk live
+                    // (addLiveFrame), so there is nothing to "resume" — and basing a button on the
+                    // live progress fraction made it blink each time a thumbnail lagged the status
+                    // frame count. Full frames are downloaded later from the Clips browser.
                     TimelapsePlayer(
                         frames = frames,
                         progress = progress,
                         currentFrameIndex = currentFrameIndex,
+                        isPlaying = isPlaying,
+                        isLive = true,
                         isDownloading = isDownloading,
                         context = context,
-                        getFrameFile = { index -> timelapseViewModel.getFrameFile(context, index) }
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    if (frames.isNotEmpty()) {
-
-                        PlayerSeekBar(
-                            currentFrameIndex = currentFrameIndex,
-                            framesCount = frames.size,
-                            onFrameSelected = { timelapseViewModel.setCurrentFrame(it) }
-                        )
-                    }
-
-                    PlayerControls(
-                        progress = progress,
-                        frames = frames,
-                        isPlaying = isPlaying,
-                        isDownloading = isDownloading,
+                        getFrameFile = { index -> timelapseViewModel.getFrameFile(context, index) },
                         onPlayPause = { timelapseViewModel.togglePlayback(!isPlaying) },
-                        onReset = { timelapseViewModel.setCurrentFrame(1) },
-                        onDownload = { timelapseViewModel.downloadFrames(context, conn) },
-                        onCancelDownload = { timelapseViewModel.stopDownload() }
+                        onSeek = { timelapseViewModel.setCurrentFrame(it) },
+                        onScrubStart = { timelapseViewModel.togglePlayback(false) },
+                        onGoLive = { timelapseViewModel.goLive() }
                     )
                 } else {
                     AsyncImage(
@@ -273,6 +322,8 @@ class StatusScreen : Screen {
 
         Spacer(modifier = Modifier.height(8.dp))
 
+        // Camera-connection line needs the ConnectedMessage for the model name. It's optional —
+        // the device sends it once on camera connect, so it can be absent for a whole session.
         connected?.let {
             val s = status?.message ?: "unknown"
             val model = it.model
@@ -282,44 +333,47 @@ class StatusScreen : Screen {
             )
 
             Spacer(modifier = Modifier.height(8.dp))
+        }
 
-            status?.let { status ->
-                val frames = status.frames
-                val interval = status.intervalMs / 1000
-                val duration = (frames * interval) / 30f
+        // Live-edit controls depend only on the running status, NOT on the camera ConnectedMessage.
+        // Gating them behind `connected` hid the whole running-edit UI whenever that message was
+        // missing (which is exactly what was happening), so they live under `status` directly.
+        status?.let { status ->
+            val frames = status.frames
+            val interval = status.intervalMs / 1000
+            val duration = (frames * interval) / 30f
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "$frames frames (${String.format(Locale.US, "%.1f", duration)}s @30fps)",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    if (status.rampMode == "fixed") {
-                        val total = status.frames + (status.framesRemaining ?: 0)
-                        LiveEditButton(
-                            text = "OF $total",
-                            title = "Total Frames",
-                            current = total.toDouble(),
-                            rampable = false,
-                        ) { v, _ -> send(DynamicChange("frames", JsonPrimitive(v), 0)) }
-                    }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "$frames frames (${String.format(Locale.US, "%.1f", duration)}s @30fps)",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                if (status.rampMode == "fixed") {
+                    val total = status.frames + (status.framesRemaining ?: 0)
+                    LiveEditButton(
+                        text = "OF $total",
+                        title = "Total Frames",
+                        current = total.toDouble(),
+                        rampable = false,
+                    ) { v, _ -> send(DynamicChange("frames", JsonPrimitive(v), 0)) }
                 }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                RampingSection(status, send)
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                ExposureSection(status.cameraSettings)
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                IntervalSection(status, program, send)
             }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            RampingSection(status, send)
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            ExposureSection(status.cameraSettings)
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            IntervalSection(status, program, send)
         }
     }
 

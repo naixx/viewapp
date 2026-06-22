@@ -117,6 +117,7 @@ class TimelapseViewModel(
      * Download all frames for the current clip
      */
     fun downloadFrames(context: Context, connectionState: ConnectionState?) {
+        LL.d("downloading $connectionState " + isPlaying.value + isDownloading.value)
         if (isPlaying.value || isDownloading.value) return
 
         // Check the connection up front so a tap while disconnected gives immediate feedback instead
@@ -126,7 +127,7 @@ class TimelapseViewModel(
             EventBus.error("Not connected to a view server")
             return
         }
-
+        LL.d("downloading")
         isDownloading.value = true
         downloadJob = viewModelScope.launch {
             val thisJob = coroutineContext[Job]
@@ -221,6 +222,16 @@ class TimelapseViewModel(
      */
     fun setCurrentFrame(index: Int) {
         currentFrameIndex.value = index
+    }
+
+    /**
+     * Jump to — and resume following — the newest captured frame. Reads the authoritative frame list
+     * (not a possibly-stale UI snapshot) and targets the real frame *number*, not the frame count, so
+     * [addLiveFrame]'s "follow latest" check keeps advancing the player as new thumbnails arrive.
+     */
+    fun goLive() {
+        togglePlayback(false)
+        downloadedFrames.value.maxOrNull()?.let { currentFrameIndex.value = it }
     }
 
     /**

@@ -3,33 +3,73 @@ package com.github.naixx.viewapp.ui
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.animation.animateContentSize
-import androidx.compose.foundation.*
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material.icons.outlined.OpenInNew
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.*
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Divider
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
-import cafe.adriel.voyager.navigator.*
-import coil3.compose.AsyncImage
-import coil3.request.*
+import cafe.adriel.voyager.navigator.LocalNavigator
+import cafe.adriel.voyager.navigator.currentOrThrow
 import com.github.naixx.viewapp.encoding.EncodingResult
-import com.github.naixx.viewapp.ui.components.*
-import com.github.naixx.viewapp.utils.*
-import github.naixx.network.*
-import kotlinx.coroutines.*
+import com.github.naixx.viewapp.ui.components.AppBarWithBack
+import com.github.naixx.viewapp.ui.components.OnConnectedEffect
+import com.github.naixx.viewapp.ui.components.TimelapsePlayer
+import com.github.naixx.viewapp.ui.components.VButton
+import com.github.naixx.viewapp.ui.components.sampleClipInfo
+import com.github.naixx.viewapp.utils.EventBus
+import com.github.naixx.viewapp.utils.activityViewModel
+import github.naixx.network.Clip
+import github.naixx.network.TimelapseClipInfo
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
-import java.time.*
+import java.time.Instant
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 class ClipInfoScreen(val clip: Clip) : Screen {
@@ -38,7 +78,7 @@ class ClipInfoScreen(val clip: Clip) : Screen {
     @Composable
     override fun Content() {
         val mainViewModel = activityViewModel<MainViewModel>()
-        val timelapseViewModel = koinViewModel<TimelapseViewModel>(parameters = { parametersOf(clip) })
+        val timelapseViewModel = koinViewModel<TimelapseViewModel>(key = clip.name, parameters = { parametersOf(clip) })
         val conn by mainViewModel.connectionState.collectAsState()
         val storedClipInfo by timelapseViewModel.clipInfo.collectAsState()
         val navigator = LocalNavigator.currentOrThrow
@@ -48,6 +88,11 @@ class ClipInfoScreen(val clip: Clip) : Screen {
         val isPlaying by timelapseViewModel.isPlaying.collectAsState()
         val isDownloading by timelapseViewModel.isDownloading.collectAsState()
         val exportProgress by timelapseViewModel.exportProgress.collectAsState()
+        val intervalStatus by mainViewModel.intervalometerStatus.collectAsState()
+
+        // "go live" only has meaning while this very clip is the time-lapse currently being captured.
+        val isLive = intervalStatus?.status?.running == true &&
+                intervalStatus?.status?.tlName?.equals(clip.name, ignoreCase = true) == true
 
         val frames = downloadedFrames
         val progress = remember(frames) {
@@ -97,7 +142,9 @@ class ClipInfoScreen(val clip: Clip) : Screen {
             if (isPlaying && frames.isNotEmpty()) {
                 while (isPlaying) {
                     delay(33)
-                    val nextFrame = if (currentFrameIndex >= frames.size) 1 else currentFrameIndex + 1
+                    // Advance by position in the (possibly gappy) downloaded set, wrapping at the end.
+                    val pos = frames.indexOf(currentFrameIndex)
+                    val nextFrame = if (pos < 0 || pos >= frames.size - 1) frames.first() else frames[pos + 1]
                     timelapseViewModel.setCurrentFrame(nextFrame)
                 }
             }
@@ -106,12 +153,12 @@ class ClipInfoScreen(val clip: Clip) : Screen {
         LaunchedEffect(Unit) {
             timelapseViewModel.exportResult.collect { result ->
                 when (result) {
-                    is EncodingResult.Success -> {
+                    is EncodingResult.Success  -> {
                         EventBus.success("Video exported successfully")
                         lastExportedUri = result.uri
                     }
 
-                    is EncodingResult.Error -> {
+                    is EncodingResult.Error    -> {
                         EventBus.success("Export failed: ${result.message}")
                     }
 
@@ -137,9 +184,15 @@ class ClipInfoScreen(val clip: Clip) : Screen {
                     frames = frames,
                     progress = progress,
                     currentFrameIndex = currentFrameIndex,
+                    isPlaying = isPlaying,
+                    isLive = isLive,
                     isDownloading = isDownloading,
                     context = context,
-                    getFrameFile = { index -> timelapseViewModel.getFrameFile(context, index) }
+                    getFrameFile = { index -> timelapseViewModel.getFrameFile(context, index) },
+                    onPlayPause = { timelapseViewModel.togglePlayback(!isPlaying) },
+                    onSeek = { timelapseViewModel.setCurrentFrame(it) },
+                    onScrubStart = { timelapseViewModel.togglePlayback(false) },
+                    onGoLive = { timelapseViewModel.goLive() }
                 )
                 AppBarWithBack(
                     title = clip.name,
@@ -153,14 +206,6 @@ class ClipInfoScreen(val clip: Clip) : Screen {
 
             if (frames.isNotEmpty()) {
                 PlayerTimeInfo(frames.size, currentFrameIndex)
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                PlayerSeekBar(
-                    currentFrameIndex = currentFrameIndex,
-                    framesCount = frames.size,
-                    onFrameSelected = { timelapseViewModel.setCurrentFrame(it) }
-                )
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -168,10 +213,7 @@ class ClipInfoScreen(val clip: Clip) : Screen {
             PlayerControls(
                 progress = progress,
                 frames = frames,
-                isPlaying = isPlaying,
                 isDownloading = isDownloading,
-                onPlayPause = { timelapseViewModel.togglePlayback(!isPlaying) },
-                onReset = { timelapseViewModel.setCurrentFrame(1) },
                 onDownload = { timelapseViewModel.downloadFrames(context, conn) },
                 onCancelDownload = { timelapseViewModel.stopDownload() }
             )
@@ -222,72 +264,6 @@ class ClipInfoScreen(val clip: Clip) : Screen {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun TimelapsePlayer(
-    frames: List<Int>,
-    progress: Float,
-    currentFrameIndex: Int,
-    isDownloading: Boolean = false,
-    context: android.content.Context,
-    getFrameFile: (Int) -> java.io.File?
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .aspectRatio(160f / 106f)
-            .background(Color.Black),
-        contentAlignment = Alignment.Center
-    ) {
-        var currentPainter by remember { mutableStateOf<Painter?>(null) }
-
-        if (progress > 0f && frames.isNotEmpty() && currentFrameIndex > 0 && currentFrameIndex <= frames.size) {
-            val frameFile = getFrameFile(currentFrameIndex)
-            if (frameFile != null) {
-                AsyncImage(
-                    model = ImageRequest.Builder(context)
-                        .data(frameFile)
-                        .crossfade(false)
-                        .build(),
-                    contentDescription = "Frame $currentFrameIndex",
-                    placeholder = currentPainter,
-                    onSuccess = { painter ->
-                        currentPainter = painter.painter
-                    },
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-        }
-
-        if (isDownloading) {
-            // Only overlay the spinner while actively downloading. Once stopped, show the frames so a
-            // partial download stays playable instead of being covered or blanked out.
-            DownloadProgressOverlay(progress, frames.size)
-        } else if (frames.isEmpty()) {
-            Text(
-                text = "Press Download to begin",
-                color = Color.White
-            )
-        }
-    }
-}
-
-@Composable
-fun DownloadProgressOverlay(progress: Float, downloadedCount: Int) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        CircularProgressIndicator(progress = { progress })
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = "Downloaded $downloadedCount frames (${(progress * 100).toInt()}%)",
-            style = MaterialTheme.typography.bodyMedium
-        )
-    }
-}
-
 @Composable
 fun PlayerTimeInfo(framesCount: Int, currentFrameIndex: Int) {
     val fps = 30
@@ -306,45 +282,10 @@ fun PlayerTimeInfo(framesCount: Int, currentFrameIndex: Int) {
 }
 
 @Composable
-fun PlayerSeekBar(
-    currentFrameIndex: Int,
-    framesCount: Int,
-    onFrameSelected: (Int) -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        /*Text(
-            text = "1",
-            modifier = Modifier.padding(end = 8.dp)
-        )*/
-
-        Slider(
-            value = currentFrameIndex.toFloat(),
-            onValueChange = {
-                onFrameSelected(it.toInt().coerceIn(1, framesCount))
-            },
-            valueRange = 1f..framesCount.toFloat(),
-            steps = if (framesCount > 2) framesCount - 2 else 0,
-            modifier = Modifier.weight(1f)
-        )
-
-        /*Text(
-            text = "$framesCount",
-            modifier = Modifier.padding(start = 8.dp)
-        )*/
-    }
-}
-
-@Composable
 fun PlayerControls(
     progress: Float,
     frames: List<Int>,
-    isPlaying: Boolean,
     isDownloading: Boolean,
-    onPlayPause: () -> Unit,
-    onReset: () -> Unit,
     onDownload: () -> Unit,
     onCancelDownload: () -> Unit
 ) {
@@ -355,7 +296,7 @@ fun PlayerControls(
     ) {
         when {
             // A download is in flight — always offer Cancel, even before the first frame lands.
-            isDownloading -> {
+            isDownloading    -> {
                 VButton(
                     text = "Cancel",
                     imageVector = Icons.Default.Close,
@@ -371,20 +312,13 @@ fun PlayerControls(
                     imageVector = Icons.Default.Download
                 ) { onDownload() }
             }
-            // Frames available — always allow playback. If the download is incomplete (e.g. stopped),
-            // also offer Resume so the user can fetch the rest without losing what they have.
-            else -> {
+            // Frames available — playback lives on the player overlay now. If the download is
+            // incomplete (e.g. stopped), still offer Resume so the user can fetch the rest.
+            progress < 1f    -> {
                 VButton(
-                    text = if (isPlaying) "Pause" else "Play",
-                    imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow
-                ) { onPlayPause() }
-                if (progress < 1f) {
-                    Spacer(modifier = Modifier.width(8.dp))
-                    VButton(
-                        text = "Resume Download",
-                        imageVector = Icons.Default.Download
-                    ) { onDownload() }
-                }
+                    text = "Resume Download",
+                    imageVector = Icons.Default.Download
+                ) { onDownload() }
             }
         }
     }
@@ -594,50 +528,27 @@ fun PlayerTimeInfoPreview() {
 
 @Preview
 @Composable
-fun PlayerSeekBarPreview() {
-    MaterialTheme(darkColorScheme()) {
-        Surface {
-            PlayerSeekBar(
-                currentFrameIndex = 45,
-                framesCount = 120,
-                onFrameSelected = {}
-            )
-        }
-    }
-}
-
-@Preview
-@Composable
 fun PlayerControlsPreview() {
     MaterialTheme(darkColorScheme()) {
         Column {
             PlayerControls(
                 progress = 0.5f,
                 frames = List(50) { it },
-                isPlaying = false,
                 isDownloading = true,
-                onPlayPause = {},
-                onReset = {},
                 onDownload = {},
                 onCancelDownload = {}
             )
             PlayerControls(
-                progress = 0.0f,
+                progress = 0.5f,
                 frames = List(50) { it },
-                isPlaying = false,
-                isDownloading = true,
-                onPlayPause = {},
-                onReset = {},
+                isDownloading = false,
                 onDownload = {},
                 onCancelDownload = {}
             )
             PlayerControls(
                 progress = 0.0f,
                 frames = listOf(),
-                isPlaying = false,
-                isDownloading = true,
-                onPlayPause = {},
-                onReset = {},
+                isDownloading = false,
                 onDownload = {},
                 onCancelDownload = {}
             )
