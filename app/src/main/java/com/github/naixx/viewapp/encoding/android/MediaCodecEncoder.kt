@@ -6,7 +6,6 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
-import android.media.MediaCodecList
 import android.media.MediaFormat
 import android.media.MediaMuxer
 import android.media.MediaScannerConnection
@@ -28,6 +27,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileInputStream
 import kotlin.coroutines.coroutineContext
+import kotlin.math.roundToInt
 
 class MediaCodecEncoder(
     private val context: Context
@@ -142,10 +142,6 @@ class MediaCodecEncoder(
         onProgressUpdate: suspend (Float) -> Unit
     ): EncodingResult {
         val mimeType = MediaFormat.MIMETYPE_VIDEO_AVC
-        val format = MediaFormat.createVideoFormat(mimeType, params.width, params.height)
-        format.setInteger(MediaFormat.KEY_BIT_RATE, params.bitRate)
-        format.setInteger(MediaFormat.KEY_FRAME_RATE, params.frameRate)
-        format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, params.iFrameInterval)
 
         var encoder: MediaCodec? = null
         var muxer: MediaMuxer? = null
@@ -153,74 +149,54 @@ class MediaCodecEncoder(
         var muxerStarted = false
 
         try {
-            // Find a suitable encoder and color format
-            var selectedColorFormat: Int? = null
+            // Create the encoder we will actually use FIRST, then derive the
+            // format from *its* capabilities. The previous code scanned every
+            // encoder for one supporting COLOR_FormatYUV420Planar but then let
+            // createEncoderByType() pick the device's default encoder, which on
+            // many devices is a different (hardware) encoder that does not
+            // support Planar -> configure() throws IllegalArgumentException.
+            // This is why it worked on the emulator (single software encoder)
+            // but failed on a Pixel 5 (Qualcomm hardware encoder).
+            val codec = MediaCodec.createEncoderByType(mimeType)
+            encoder = codec
 
-            val codecList = MediaCodecList(MediaCodecList.REGULAR_CODECS)
-            val encoderNames = ArrayList<String>()
-            var foundPlanar = false
-            var foundSemiPlanar = false
+            val videoCaps = codec.codecInfo
+                .getCapabilitiesForType(mimeType)
+                .videoCapabilities
 
-            // Find compatible encoder and format
-            for (info in codecList.codecInfos) {
-                if (!info.isEncoder || !info.supportedTypes.contains(mimeType)) {
-                    continue
-                }
+            // Pick a size the encoder actually supports. Frames stay at native
+            // size when possible; tiny device previews (e.g. 160x106) are scaled
+            // up to the encoder's minimum, oversized frames are scaled down -
+            // always preserving aspect ratio, then aligned to the encoder's
+            // required multiple. Hardware encoders reject sizes below their
+            // minimum (commonly 128x128) or off their alignment grid.
+            val (width, height) = computeTargetSize(params.width, params.height, videoCaps)
 
-                encoderNames.add(info.name)
-
-                try {
-                    val caps = info.getCapabilitiesForType(mimeType)
-                    val colorFormats = caps.colorFormats
-
-                    // Prefer Planar (I420) as it matches our ColorConverter
-                    if (colorFormats.contains(MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar)) {
-                        selectedColorFormat = MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar
-                        foundPlanar = true
-                        LL.d("Found suitable encoder ${info.name} supporting Planar YUV420 (I420)")
-                        break // Found the best match
-                    } else if (colorFormats.contains(MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar)) {
-                        // Mark if SemiPlanar is available as a fallback possibility
-                        foundSemiPlanar = true
-                        LL.d("Encoder ${info.name} supports SemiPlanar YUV420")
-                    }
-                } catch (e: Exception) {
-                    LL.w("Error checking capabilities for encoder ${info.name}: ${e.message}")
-                }
+            val format = MediaFormat.createVideoFormat(mimeType, width, height).apply {
+                setInteger(MediaFormat.KEY_BIT_RATE, params.bitRate)
+                setInteger(MediaFormat.KEY_FRAME_RATE, params.frameRate)
+                setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, params.iFrameInterval)
+                // Flexible YUV420 is mandated on every encoder since API 22
+                // (minSdk is 24), and getInputImage() lets us write planes using
+                // the device's real strides/layout (planar vs. semiplanar)
+                // instead of guessing the color format.
+                setInteger(
+                    MediaFormat.KEY_COLOR_FORMAT,
+                    MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible
+                )
             }
 
-            // If Planar wasn't found, try SemiPlanar (might need converter change later)
-            // If neither, fall back to Flexible
-            if (selectedColorFormat == null) {
-                if (foundSemiPlanar) {
-                    selectedColorFormat = MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar
-                    LL.w("Using SemiPlanar YUV420 format with Planar data converter. Colors might be incorrect.")
-                } else {
-                    // Fallback to flexible as last resort
-                    selectedColorFormat = MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible
-                    LL.w("No specific Planar/SemiPlanar YUV420 format found. Using Flexible format. Colors might be incorrect.")
-                }
-            }
+            LL.i("Encoding with ${codec.name} at ${width}x$height (requested ${params.width}x${params.height})")
 
-            if (selectedColorFormat == null) {
-                return EncodingResult.Error("Could not find any suitable YUV420 color format for the encoder.")
-            }
-
-            LL.i("Selected color format: $selectedColorFormat (Planar=$foundPlanar, SemiPlanar=$foundSemiPlanar)")
-
-            // Set the selected format
-            format.setInteger(MediaFormat.KEY_COLOR_FORMAT, selectedColorFormat)
-
-            // Create and configure encoder
-            encoder = MediaCodec.createEncoderByType(mimeType)
-            encoder.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
-            encoder.start()
+            codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+            codec.start()
 
             muxer = MediaMuxer(outputPath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
 
             val bufferInfo = MediaCodec.BufferInfo()
             var presentationTimeUs = 0L
             val frameDurationUs = 1_000_000L / params.frameRate
+            val inputSize = width * height * 3 / 2
 
             frames.forEachIndexed { index, frameFile ->
                 if (!coroutineContext.isActive || isEncodingCancelled) {
@@ -234,46 +210,48 @@ class MediaCodecEncoder(
                         return@forEachIndexed
                     }
 
-                    // Use our proper color converter
-                    val inputData = ColorConverter.convertBitmapToI420(bitmap)
-
-                    var inputBufferIndex = encoder.dequeueInputBuffer(10000)
-                    if (inputBufferIndex >= 0) {
-                        val inputBuffer = encoder.getInputBuffer(inputBufferIndex)
-                        if (inputBuffer == null) {
-                            LL.e("Failed to get input buffer at index $inputBufferIndex")
-                            return@forEachIndexed
-                        }
-
-                        inputBuffer.clear()
-                        inputBuffer.put(inputData)
-
-                        encoder.queueInputBuffer(
-                            inputBufferIndex,
-                            0,
-                            inputData.size,
-                            presentationTimeUs,
-                            0
-                        )
-
-                        presentationTimeUs += frameDurationUs
+                    val frame = if (bitmap.width == width && bitmap.height == height) {
+                        bitmap
+                    } else {
+                        Bitmap.createScaledBitmap(bitmap, width, height, true)
                     }
 
-                    var outputBufferIndex = encoder.dequeueOutputBuffer(bufferInfo, 10000)
+                    val inputBufferIndex = codec.dequeueInputBuffer(10000)
+                    if (inputBufferIndex >= 0) {
+                        val image = codec.getInputImage(inputBufferIndex)
+                        if (image != null) {
+                            ColorConverter.fillInputImage(image, frame)
+                            codec.queueInputBuffer(
+                                inputBufferIndex,
+                                0,
+                                inputSize,
+                                presentationTimeUs,
+                                0
+                            )
+                            presentationTimeUs += frameDurationUs
+                        } else {
+                            LL.e("getInputImage returned null at index $inputBufferIndex")
+                            codec.queueInputBuffer(inputBufferIndex, 0, 0, presentationTimeUs, 0)
+                        }
+                    }
+
+                    if (frame !== bitmap) frame.recycle()
+
+                    var outputBufferIndex = codec.dequeueOutputBuffer(bufferInfo, 10000)
                     while (outputBufferIndex >= 0) {
                         if (!muxerStarted) {
-                            trackIndex = muxer.addTrack(encoder.outputFormat)
+                            trackIndex = muxer.addTrack(codec.outputFormat)
                             muxer.start()
                             muxerStarted = true
                         }
 
-                        val encodedData = encoder.getOutputBuffer(outputBufferIndex)
+                        val encodedData = codec.getOutputBuffer(outputBufferIndex)
                         if (encodedData != null && bufferInfo.size > 0 && (bufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG) == 0) {
                             muxer.writeSampleData(trackIndex, encodedData, bufferInfo)
                         }
 
-                        encoder.releaseOutputBuffer(outputBufferIndex, false)
-                        outputBufferIndex = encoder.dequeueOutputBuffer(bufferInfo, 10000)
+                        codec.releaseOutputBuffer(outputBufferIndex, false)
+                        outputBufferIndex = codec.dequeueOutputBuffer(bufferInfo, 10000)
                     }
 
                     bitmap.recycle()
@@ -284,9 +262,9 @@ class MediaCodecEncoder(
                 onProgressUpdate(progress)
             }
 
-            val inputBufferIndex = encoder.dequeueInputBuffer(10000)
+            val inputBufferIndex = codec.dequeueInputBuffer(10000)
             if (inputBufferIndex >= 0) {
-                encoder.queueInputBuffer(
+                codec.queueInputBuffer(
                     inputBufferIndex,
                     0,
                     0,
@@ -295,21 +273,21 @@ class MediaCodecEncoder(
                 )
             }
 
-            var outputBufferIndex = encoder.dequeueOutputBuffer(bufferInfo, 10000)
+            var outputBufferIndex = codec.dequeueOutputBuffer(bufferInfo, 10000)
             while (outputBufferIndex >= 0) {
-                if ((bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
-                    break
-                }
-
                 if (muxerStarted && bufferInfo.size > 0 && (bufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG) == 0) {
-                    val encodedData = encoder.getOutputBuffer(outputBufferIndex)
+                    val encodedData = codec.getOutputBuffer(outputBufferIndex)
                     if (encodedData != null) {
                         muxer.writeSampleData(trackIndex, encodedData, bufferInfo)
                     }
                 }
 
-                encoder.releaseOutputBuffer(outputBufferIndex, false)
-                outputBufferIndex = encoder.dequeueOutputBuffer(bufferInfo, 10000)
+                if ((bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
+                    break
+                }
+
+                codec.releaseOutputBuffer(outputBufferIndex, false)
+                outputBufferIndex = codec.dequeueOutputBuffer(bufferInfo, 10000)
             }
 
             return EncodingResult.Success(outputPath)
@@ -335,5 +313,46 @@ class MediaCodecEncoder(
     override fun cancel() {
         isEncodingCancelled = true
         _progress.value = 0f
+    }
+
+    /**
+     * Choose output dimensions the AVC encoder supports for a source frame of
+     * [srcW] x [srcH]: scale (preserving aspect ratio) to fit within the
+     * encoder's supported width/height range, then align to its required
+     * multiples. Frames already within range keep their native size.
+     */
+    private fun computeTargetSize(
+        srcW: Int,
+        srcH: Int,
+        caps: MediaCodecInfo.VideoCapabilities?
+    ): Pair<Int, Int> {
+        if (caps == null) {
+            // Unknown capabilities: fall back to even dimensions (YUV 4:2:0 needs them).
+            return (srcW and 1.inv()) to (srcH and 1.inv())
+        }
+        val minW = caps.supportedWidths.lower
+        val maxW = caps.supportedWidths.upper
+        val minH = caps.supportedHeights.lower
+        val maxH = caps.supportedHeights.upper
+
+        var scale = 1.0
+        if (srcW < minW) scale = maxOf(scale, minW.toDouble() / srcW)
+        if (srcH < minH) scale = maxOf(scale, minH.toDouble() / srcH)
+        if (srcW * scale > maxW) scale = minOf(scale, maxW.toDouble() / srcW)
+        if (srcH * scale > maxH) scale = minOf(scale, maxH.toDouble() / srcH)
+
+        val w = alignToRange((srcW * scale).roundToInt(), caps.widthAlignment, minW, maxW)
+        val h = alignToRange((srcH * scale).roundToInt(), caps.heightAlignment, minH, maxH)
+        return w to h
+    }
+
+    /** Clamp [value] into [[min], [max]] and snap to a multiple of [alignment]. */
+    private fun alignToRange(value: Int, alignment: Int, min: Int, max: Int): Int {
+        val clamped = value.coerceIn(min, max)
+        if (alignment <= 1) return clamped
+        var aligned = clamped / alignment * alignment
+        if (aligned < min) aligned += alignment
+        if (aligned > max) aligned = max / alignment * alignment
+        return aligned
     }
 }

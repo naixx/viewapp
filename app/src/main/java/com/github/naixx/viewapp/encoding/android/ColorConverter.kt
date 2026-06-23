@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.media.Image
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileInputStream
@@ -101,6 +102,95 @@ object ColorConverter {
         }
 
         return yuvBuffer
+    }
+
+    /**
+     * Fill a MediaCodec input [Image] (configured as COLOR_FormatYUV420Flexible)
+     * with YUV420 data derived from [bitmap].
+     *
+     * Unlike [convertBitmapToI420], this writes directly into the codec's plane
+     * buffers honouring each plane's [Image.Plane.getRowStride] and
+     * [Image.Plane.getPixelStride]. That lets the same code feed both planar
+     * (I420) software encoders and semiplanar (NV12) hardware encoders correctly,
+     * since the Image abstraction reports the device's real layout.
+     *
+     * The top-left [Image.getWidth] x [Image.getHeight] region of [bitmap] is
+     * used (the bitmap must be at least that large), so the caller can crop to
+     * the encoder's required dimension alignment.
+     */
+    @JvmStatic
+    fun fillInputImage(image: Image, bitmap: Bitmap) {
+        val width = image.width
+        val height = image.height
+
+        val argb = IntArray(width * height)
+        bitmap.getPixels(argb, 0, width, 0, 0, width, height)
+
+        val yPlane = image.planes[0]
+        val uPlane = image.planes[1]
+        val vPlane = image.planes[2]
+
+        val yBuffer = yPlane.buffer
+        val uBuffer = uPlane.buffer
+        val vBuffer = vPlane.buffer
+
+        val yRowStride = yPlane.rowStride
+        val yPixelStride = yPlane.pixelStride
+        val uvRowStride = uPlane.rowStride
+        val uvPixelStride = uPlane.pixelStride
+
+        // Y plane (full resolution)
+        for (j in 0 until height) {
+            val rowBase = j * yRowStride
+            val pixRow = j * width
+            for (i in 0 until width) {
+                val argbValue = argb[pixRow + i]
+                val r = Color.red(argbValue)
+                val g = Color.green(argbValue)
+                val b = Color.blue(argbValue)
+                val y = clamp((0.299 * r + 0.587 * g + 0.114 * b).toInt())
+                yBuffer.put(rowBase + i * yPixelStride, y.toByte())
+            }
+        }
+
+        // U/V planes (quarter resolution, 2x2 box-averaged)
+        var j = 0
+        while (j < height) {
+            var i = 0
+            while (i < width) {
+                var sumR = 0
+                var sumG = 0
+                var sumB = 0
+                var count = 0
+
+                for (jj in 0 until 2) {
+                    val y = j + jj
+                    if (y >= height) continue
+                    for (ii in 0 until 2) {
+                        val x = i + ii
+                        if (x >= width) continue
+                        val argbValue = argb[y * width + x]
+                        sumR += Color.red(argbValue)
+                        sumG += Color.green(argbValue)
+                        sumB += Color.blue(argbValue)
+                        count++
+                    }
+                }
+
+                val avgR = if (count > 0) sumR / count else 0
+                val avgG = if (count > 0) sumG / count else 0
+                val avgB = if (count > 0) sumB / count else 0
+
+                val u = clamp((-0.14713 * avgR - 0.28886 * avgG + 0.436 * avgB + 128).toInt())
+                val v = clamp((0.615 * avgR - 0.51499 * avgG - 0.10001 * avgB + 128).toInt())
+
+                val uvIndex = (j / 2) * uvRowStride + (i / 2) * uvPixelStride
+                uBuffer.put(uvIndex, u.toByte())
+                vBuffer.put(uvIndex, v.toByte())
+                i += 2
+            }
+            j += 2
+        }
     }
 
     /**
