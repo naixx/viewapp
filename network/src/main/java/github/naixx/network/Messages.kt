@@ -766,7 +766,8 @@ data class Status(
     //val hdrSet: Map<String, @Contextual Any?>,
     val hdrIndex: Int,
     val hdrCount: Int,
-    val currentPlanIndex: @Contextual Any?,
+    // Index into the eclipse exposure plan (null when no plan is active); the device emits a number or null.
+    val currentPlanIndex: Int? = null,
     val panDiffNew: Int,
     val tiltDiffNew: Int,
     val focusDiffNew: Int,

@@ -44,6 +44,23 @@ class MessagesTest {
     }
 
     @Test
+    fun testIntervalometerStatusDeserialization() {
+        // Regression: Status.currentPlanIndex was declared `@Contextual Any?`, which has no
+        // registered serializer, so every real-device `intervalometerStatus` frame failed to
+        // deserialize with "Serializer for class 'Any' is not found" (WebSocketClient receive loop).
+        // The fixture is a real frame captured from the device — currentPlanIndex is a number while
+        // an exposure plan is active.
+        val raw = MessagesTest::class.java.getResource("/intervalometerStatus.json")!!.readText()
+
+        val result = polyJson.decodeFromString<BaseMessage>(raw)
+
+        assertTrue(result is IntervalometerStatus)
+        assertEquals("intervalometerStatus", result.type)
+        assertEquals(0, result.status.currentPlanIndex)
+        assertTrue(result.status.running)
+    }
+
+    @Test
     fun testConnectedDeserialization() {
         val result = json.decodeFromString<ConnectedMessage>(connecJson)
 
