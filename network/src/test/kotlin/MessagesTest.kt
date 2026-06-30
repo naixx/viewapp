@@ -61,6 +61,54 @@ class MessagesTest {
     }
 
     @Test
+    fun testIdleIntervalometerStatusDeserialization() {
+        // Regression: when idle the device sends a minimal status — `exposure` is {status:{},config:{}}
+        // and tlName/cameraSettings/hdr*/pan*/tilt*/tracking* are all omitted. The model must tolerate it.
+        val raw = MessagesTest::class.java.getResource("/intervalometerStatus_idle.json")!!.readText()
+        val result = polyJson.decodeFromString<BaseMessage>(raw)
+        assertTrue(result is IntervalometerStatus)
+        val s = (result as IntervalometerStatus).status
+        assertEquals(false, s.running)
+        assertNull(s.tlName)
+        assertNull(s.cameraSettings)
+    }
+
+    @Test
+    fun testFullSettingsDeserialization() {
+        // Regression: a real camera's full settings include an "UNKNOWN (<code>)" entry with `ev: null`
+        // in the aperture/shutter lists. Those entries decode with the strict Json.Default
+        // (DynamicListSerializer), so the *Entry.ev fields must be nullable or the whole frame is dropped.
+        val raw = MessagesTest::class.java.getResource("/settings_full.json")!!.readText()
+        val result = polyJson.decodeFromString<BaseMessage>(raw)
+        assertTrue(result is SettingsMessage)
+        val s = (result as SettingsMessage).settings
+        assertEquals("1/1600", s.shutter)
+        assertEquals(55, s.details?.shutter?.list?.size)
+        assertEquals(89, s.details?.iso?.list?.size)
+        assertEquals(37, s.details?.aperture?.list?.size)
+    }
+
+    @Test
+    fun testIdleSettingsDeserialization() {
+        // Regression: idle `settings` send shutter/aperture/iso = null and details.{shutter,iso} = null.
+        val raw = MessagesTest::class.java.getResource("/settings_idle.json")!!.readText()
+        val result = polyJson.decodeFromString<BaseMessage>(raw)
+        assertTrue(result is SettingsMessage)
+        assertNull((result as SettingsMessage).settings.shutter)
+        assertNull(result.settings.iso)
+    }
+
+    @Test
+    fun testTimelapseProgramTypedDecode() {
+        // Regression: a real device program (numeric `interval`, eclipse plans/keyframes, and which may
+        // omit tracking/delay/axes/focusPos) must still decode into the typed Program.
+        val raw = MessagesTest::class.java.getResource("/timelapseProgram.json")!!.readText()
+        val result = polyJson.decodeFromString<BaseMessage>(raw)
+        assertTrue(result is TimelapseProgram)
+        assertEquals("auto", (result as TimelapseProgram).program.rampMode)
+    }
+
+    @Test
     fun testConnectedDeserialization() {
         val result = json.decodeFromString<ConnectedMessage>(connecJson)
 
@@ -158,6 +206,57 @@ class MessagesTest {
         assertTrue(dc.contains("\"type\":\"dynamicChange\""), dc)
         assertTrue(dc.contains("\"parameter\":\"interval\""))
         assertTrue(dc.contains("\"frames\":30"))
+    }
+
+    @Test
+    fun testCameraControlOutMessageSerialization() {
+        val set = polyJson.encodeToString<OutMessage>(SetSetting("iso", "100"))
+        assertTrue(set.contains("\"type\":\"set\""), set)
+        assertTrue(set.contains("\"key\":\"iso\""), set)
+        assertTrue(set.contains("\"val\":\"100\""), set) // wire key is `val`, not `value`
+
+        assertTrue(polyJson.encodeToString<OutMessage>(Capture()).contains("\"type\":\"capture\""))
+        assertTrue(polyJson.encodeToString<OutMessage>(CaptureTest()).contains("\"type\":\"capture-test\""))
+        assertTrue(polyJson.encodeToString<OutMessage>(SetEvUp()).contains("\"type\":\"setEvUp\""))
+        assertTrue(polyJson.encodeToString<OutMessage>(SetEvDown()).contains("\"type\":\"setEvDown\""))
+
+        val setEv = polyJson.encodeToString<OutMessage>(SetEv(1.5))
+        assertTrue(setEv.contains("\"type\":\"setEv\""), setEv)
+        assertTrue(setEv.contains("\"ev\":1.5"), setEv)
+
+        // The firmware gates focus on `key === 'manual'` and reads `repeat`; both must survive encoding.
+        val focus = polyJson.encodeToString<OutMessage>(ManualFocus("manual", value = -1, repeat = 2))
+        assertTrue(focus.contains("\"type\":\"focus\""), focus)
+        assertTrue(focus.contains("\"key\":\"manual\""), focus)
+        assertTrue(focus.contains("\"val\":-1"), focus)
+        assertTrue(focus.contains("\"repeat\":2"), focus)
+
+        assertTrue(polyJson.encodeToString<OutMessage>(Preview()).contains("\"type\":\"preview\""))
+        assertTrue(polyJson.encodeToString<OutMessage>(PreviewStop()).contains("\"type\":\"previewStop\""))
+    }
+
+    @Test
+    fun testPreviewThumbnailDeserialization() {
+        // Regression: live-view ("preview") and test-shot ("test") frames omit frameIndex/tlName
+        // (those exist only for running-timelapse "thumbnail" frames), so the model must default them.
+        val raw = """{"type":"thumbnail","imageType":"test","jpeg":"abc123"}"""
+        val result = polyJson.decodeFromString<BaseMessage>(raw)
+        assertTrue(result is Thumbnail)
+        assertEquals("test", (result as Thumbnail).imageType)
+        assertEquals("abc123", result.imageBase64)
+    }
+
+    @Test
+    fun testCaptureErrorDeserialization() {
+        // `msg` may be a plain string …
+        val str = polyJson.decodeFromString<BaseMessage>("""{"type":"captureError","msg":"Camera busy"}""")
+        assertTrue(str is CaptureError)
+        assertEquals("Camera busy", (str as CaptureError).message)
+
+        // … or an object the device emits on hardware errors, e.g. {"errno":2}.
+        val obj = polyJson.decodeFromString<BaseMessage>("""{"type":"captureError","msg":{"errno":2}}""")
+        assertTrue(obj is CaptureError)
+        assertTrue((obj as CaptureError).message.contains("errno"), obj.message)
     }
 
 //    @Test

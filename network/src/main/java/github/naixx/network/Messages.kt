@@ -75,15 +75,73 @@ data class DynamicChange(
     val frames: Int
 ) : OutMessage("dynamicChange")
 
+// --- Live camera control (manual capture & exposure, focus, live view) ---
+// Accepted directly by the device's WS bridge (system/app.js → main.js switch). See docs/ORIGINAL_APP.md §6
+// and docs/API.md "Manual camera control" (capture vs capture-test, the full-range exposure lists, the
+// live-view poll, and why test/preview frames arrive as imageType "thumbnail").
+// The firmware does NOT auto-reply to `set`; follow it with Get("settings") to refresh. `setEv*` reply
+// with a fresh `settings`. `capture`/`capture-test` only reply on failure (`captureError`); `capture-test`
+// also pushes a `thumbnail` with imageType "test". Live view is a client-driven poll: each `preview`
+// yields one `thumbnail` (imageType "preview"); request the next on receipt (firmware stops after ~5 s idle).
+
+/** Change one exposure setting. [key] ∈ "shutter" | "aperture" | "iso"; [value] is the device cameraName. */
+@Serializable
+data class SetSetting(val key: String, @SerialName("val") val value: String) : OutMessage("set")
+
+@Serializable
+data class SetEv(val ev: Double) : OutMessage("setEv")
+
+@Serializable
+class SetEvUp : OutMessage("setEvUp")
+
+@Serializable
+class SetEvDown : OutMessage("setEvDown")
+
+@Serializable
+class Capture : OutMessage("capture")
+
+@Serializable
+class CaptureTest : OutMessage("capture-test")
+
+/**
+ * Manual focus nudge. [value] is direction/magnitude (±1, ±2, ±3); [repeat] applies it N times.
+ * No default values: the firmware gates on `msg.key === 'manual'`, and kotlinx omits properties equal
+ * to their default on encode — so every field is required to guarantee it reaches the device.
+ */
+@Serializable
+data class ManualFocus(val key: String, @SerialName("val") val value: Int, val repeat: Int) : OutMessage("focus")
+
+@Serializable
+class Preview : OutMessage("preview")
+
+@Serializable
+class PreviewStop : OutMessage("previewStop")
+
+// Device → app: capture failed (e.g. busy / no card / not ready). The firmware sends `msg` as either
+// a plain string ("An error occurred…") or an object (e.g. {"errno":2}), so it is a raw JsonElement
+// and [message] flattens it to displayable text.
+@Serializable
+@SerialName("captureError")
+data class CaptureError(val msg: JsonElement? = null, override val type: String = "captureError") : BaseMessage() {
+    val message: String
+        get() = when (val m = msg) {
+            null -> "Capture failed"
+            is JsonPrimitive -> m.contentOrNull ?: m.toString()
+            else -> "Capture failed: $m"
+        }
+}
+
 //timelapse messages
 @Serializable
 @SerialName("thumbnail")
 data class Thumbnail(
     val imageType: String,
-    val time: String, //TODO use datetime
+    val time: String = "", //TODO use datetime
     override val type: String,
-    val frameIndex: Int,
-    val tlName: String,
+    // frameIndex/tlName exist only for running-timelapse frames (imageType "thumbnail"); live-view and
+    // test-shot frames (imageType "preview"/"test") omit them, so both are optional.
+    val frameIndex: Int = -1,
+    val tlName: String = "",
     @SerialName("jpeg")
     override val imageBase64: String
 ) : BaseMessage(), CoilMapper
@@ -677,11 +735,11 @@ data class Program(
     //val keyframes: Map<String, @Contextual Any>? = null,
     @Serializable(with = SavedExposurePlanSerializer::class)
     val savedExposurePlans: List<SavedExposurePlan> = emptyList(),
-    val tracking: String,
-    val delay: Int,
+    val tracking: String? = null,
+    val delay: Int? = null,
     val scheduled: Boolean? = null,
-    val axes: Axes,
-    val focusPos: Int,
+    val axes: Axes? = null,
+    val focusPos: Int? = null,
     val coords: Coords? = null,
     val loaded: Boolean? = null,
     val durationSeconds: Int? = null,
@@ -752,34 +810,36 @@ data class Status(
     val message: String,
     val rampEv: Double? = null,
     val autoSettings: AutoSettings,
-    val exposure: Exposure,
+    val exposure: Exposure = Exposure(),
     val stopping: Boolean? = false,
     val timeOffsetSeconds: Int? = 0,
     val exposureReferenceEv: Double? = null,
-    val tlName: String,
-    val timelapseFolder: String,
+    // The fields below are only present while a time-lapse is running; when idle the device omits them,
+    // so they are all optional. (See the captured idle `intervalometerStatus` fixture.)
+    val tlName: String? = null,
+    val timelapseFolder: String? = null,
     val first: Boolean = true,
     val rampMode: String? = null,
-    val startTime: Double,
+    val startTime: Double = 0.0,
     val bufferSeconds: Double = 0.0,
-    val cameraSettings: CameraSettings,
+    val cameraSettings: CameraSettings? = null,
     //val hdrSet: Map<String, @Contextual Any?>,
-    val hdrIndex: Int,
-    val hdrCount: Int,
+    val hdrIndex: Int = 0,
+    val hdrCount: Int = 0,
     // Index into the eclipse exposure plan (null when no plan is active); the device emits a number or null.
     val currentPlanIndex: Int? = null,
-    val panDiffNew: Int,
-    val tiltDiffNew: Int,
-    val focusDiffNew: Int,
-    val panDiff: Int,
-    val tiltDiff: Int,
-    val trackingPanEnabled: Boolean,
-    val trackingTiltEnabled: Boolean,
+    val panDiffNew: Int = 0,
+    val tiltDiffNew: Int = 0,
+    val focusDiffNew: Int = 0,
+    val panDiff: Int = 0,
+    val tiltDiff: Int = 0,
+    val trackingPanEnabled: Boolean = false,
+    val trackingTiltEnabled: Boolean = false,
     // Active live (dynamicChange) ramps, keyed by parameter name (manualOffsetEv, interval, …).
     // Present only while a parameter is ramping; the device deletes the entry when it completes.
     val dynamicChange: Map<String, DynamicChangeEntry> = emptyMap(),
-    val trackingTilt: Int,
-    val trackingPan: Int,
+    val trackingTilt: Int = 0,
+    val trackingPan: Int = 0,
     val latitude: Double? = null,
     val longitude: Double? = null,
     val altitude: Double? = null,
@@ -809,8 +869,9 @@ data class DynamicChangeEntry(
 
 @Serializable
 data class Exposure(
-    val status: ExposureStatus,
-    val config: ExposureConfig
+    // The device sends `{}` for both when idle (no active ramp), so both default to an empty object.
+    val status: ExposureStatus = ExposureStatus(),
+    val config: ExposureConfig = ExposureConfig()
 )
 
 @Serializable
@@ -836,20 +897,21 @@ data class ExposureStatus(
 )
 
 @Serializable
+// All fields are optional: the device sends an empty `{}` config when idle (no active exposure ramp).
 data class ExposureConfig(
-    val sunrise: Sunrise,
-    val sunset: Sunset,
-    val maxEv: Double,
-    val minEv: Double,
-    val maxRate: Int,
-    val hysteresis: Double,
-    val nightCompensationDayEv: Int,
-    val nightCompensationNightEv: Int,
-    val nightCompensation: String,
-    val nightLuminance: String,
-    val dayLuminance: Double,
-    val highlightProtection: Boolean,
-    val highlightProtectionLimit: Int
+    val sunrise: Sunrise? = null,
+    val sunset: Sunset? = null,
+    val maxEv: Double? = null,
+    val minEv: Double? = null,
+    val maxRate: Int? = null,
+    val hysteresis: Double? = null,
+    val nightCompensationDayEv: Int? = null,
+    val nightCompensationNightEv: Int? = null,
+    val nightCompensation: String? = null,
+    val nightLuminance: String? = null,
+    val dayLuminance: Double? = null,
+    val highlightProtection: Boolean? = null,
+    val highlightProtectionLimit: Int? = null
 )
 
 @Serializable
@@ -875,26 +937,29 @@ data class Sunset(
 )
 
 @Serializable
+// shutter/aperture/iso and the per-control details are null when no camera/lens reports them
+// (e.g. just after connect, or a lens with no electronic aperture), so all are optional.
 data class CameraSettings(
-    val shutter: String,
-    val aperture: String,
+    val shutter: String? = null,
+    val aperture: String? = null,
     val battery: Double? = null,
     val focusPos: Double? = null,
-    val iso: String,
-    val details: CameraDetails
+    val iso: String? = null,
+    val details: CameraDetails? = null
 )
 
 @Serializable
 data class CameraDetails(
-    val shutter: Shutter,
+    val shutter: Shutter? = null,
     val aperture: Aperture? = null,
-    val iso: ISO
+    val iso: ISO? = null
 )
 
 @Serializable
 data class Shutter(
     val name: String,
-    val ev: Double,
+    // null for values with no defined EV (e.g. BULB), so nullable.
+    val ev: Double? = null,
     val code: Int? = null,
     val duration_ms: Int? = null,
     val cameraName: String? = null,
@@ -908,9 +973,11 @@ object ShutterEntrySerializer : DynamicListSerializer<ShutterEntry>(ShutterEntry
 @Serializable
 data class ShutterEntry(
     val name: String,
-    val ev: Double,
-    val code: Int,
-    val duration_ms: Int,
+    // The camera lists "UNKNOWN (<code>)" entries for values it can't classify; those carry null ev/metadata.
+    // These entries decode with the strict Json.Default (DynamicListSerializer), so they must be nullable.
+    val ev: Double? = null,
+    val code: Int? = null,
+    val duration_ms: Int? = null,
     val cameraName: String
 )
 
@@ -929,15 +996,17 @@ object ApertureEntrySerializer : DynamicListSerializer<ApertureEntry>(ApertureEn
 @Serializable
 data class ApertureEntry(
     val name: String,
-    val ev: Double,
-    val code: Int,
+    // "UNKNOWN (<code>)" aperture entries carry a null ev (decoded with strict Json.Default).
+    val ev: Double? = null,
+    val code: Int? = null,
     val cameraName: String
 )
 
 @Serializable
 data class ISO(
     val name: String,
-    val ev: Double,
+    // null for AUTO ISO (no fixed EV), so nullable.
+    val ev: Double? = null,
     val code: Int? = null,
     val cameraName: String? = null,
     @Serializable(ISOEntrySerializer::class)

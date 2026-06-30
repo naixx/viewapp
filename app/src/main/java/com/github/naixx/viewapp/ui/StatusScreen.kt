@@ -15,6 +15,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
@@ -252,7 +253,13 @@ class StatusScreen : Screen {
                 Spacer(modifier = Modifier.height(16.dp))
                 StopButton(send)
             } else {
-                // Idle: show the program editor (mirrors the original IntervalometerPage setup view).
+                // Idle: manual camera control (when a camera is connected) above the program editor
+                // (mirrors the original CameraPage + IntervalometerPage setup view).
+                if (connected?.connected == true) {
+                    settings?.let { CameraControls(it.settings, thumbnail, send) }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    HorizontalDivider()
+                }
                 draft?.let { d ->
                     ProgramEditor(d, programVm, settings?.settings, send)
                 }
@@ -583,7 +590,7 @@ class StatusScreen : Screen {
         connected?.let {
             val text = listOfNotNull(
                 it.model.takeIf { it.isNotEmpty() },
-                settings?.let { "${it.settings.battery?.toInt()}%" },
+                settings?.settings?.battery?.let { b -> "${b.toInt()}%" },
                 battery?.let { "VIEW battery " + it.percentage.toInt() + "%" }
             ).joinToString()
 

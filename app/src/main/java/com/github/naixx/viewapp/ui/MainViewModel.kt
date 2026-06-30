@@ -6,6 +6,7 @@ import com.github.naixx.logger.LL
 import com.github.naixx.viewapp.utils.EventBus
 import github.naixx.network.BaseMessage
 import github.naixx.network.Battery
+import github.naixx.network.CaptureError
 import github.naixx.network.Clip
 import github.naixx.network.ConnectedMessage
 import github.naixx.network.ConnectionState
@@ -82,6 +83,9 @@ class MainViewModel : ViewModel(), KoinComponent {
             val text = message.msg ?: "An error occurred during capture"
             EventBus.error(text)
             addNotification(text)
+        }
+        if (message is CaptureError) {
+            EventBus.error(message.message)
         }
 
         val flow = messageFlows.getOrPut(message::class) {

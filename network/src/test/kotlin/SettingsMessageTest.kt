@@ -22,11 +22,11 @@ class SettingsMessageTest {
         assertEquals(72.0, settings.battery)
         assertEquals(0.0, settings.focusPos)
 
-        // Test details
-        val details = settings.details
+        // Test details (present in this full-settings fixture; nullable in the model for idle states)
+        val details = settings.details!!
 
         // Test shutter details
-        val shutter = details.shutter
+        val shutter = details.shutter!!
         assertEquals("30s", shutter.name)
         assertEquals(-11.0, shutter.ev)
         assertEquals(19660810, shutter.code)
@@ -59,7 +59,7 @@ class SettingsMessageTest {
         assertEquals("1.0", sampleAperture?.cameraName)
 
         // Test ISO details
-        val iso = details.iso
+        val iso = details.iso!!
         assertEquals("100", iso.name)
         assertEquals(0.0, iso.ev)
         assertEquals(100, iso.code)

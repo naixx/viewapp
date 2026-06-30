@@ -445,9 +445,9 @@ private fun InfoView(info: TimelapseClipInfo) {
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                val shutterValue = info.status.cameraSettings.shutter
-                val apertureValue = info.status.cameraSettings.aperture
-                val isoValue = info.status.cameraSettings.iso
+                val shutterValue = info.status.cameraSettings?.shutter ?: "—"
+                val apertureValue = info.status.cameraSettings?.aperture ?: "—"
+                val isoValue = info.status.cameraSettings?.iso ?: "—"
                 Text(
                     text = "Start exposure: $shutterValue f/$apertureValue $isoValue ISO",
                     color = Color.LightGray
