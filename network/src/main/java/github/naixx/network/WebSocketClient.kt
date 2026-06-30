@@ -32,11 +32,11 @@ class WebSocketClient(
 ) : KoinComponent {
 
     var session: DefaultClientWebSocketSession? = null
-    private var cachedLocalAddress: AddressResponse? = null
     val connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
 
     suspend fun startWebSocket(
-        localUrls: List<String>,
+        priorityUrls: List<String>,
+        scanUrls: List<String>,
         onCreate: suspend (DefaultClientWebSocketSession, ConnectionState.Connected) -> Unit,
         onMessage: (BaseMessage) -> Unit
     ) {
@@ -46,7 +46,7 @@ class WebSocketClient(
             try {
                 connectionState.value = ConnectionState.Connecting
                 // Get the connection URL based on current preference
-                val foundServer = findServer(useLocalConnection, localUrls)
+                val foundServer = findServer(useLocalConnection, priorityUrls, scanUrls)
 
                 if (foundServer == null) {
 //                    TODO useLocalConnection = !useLocalConnection
@@ -87,13 +87,16 @@ class WebSocketClient(
                         }
                     }
                 }
+            } catch (e: CancellationException) {
+                // Explicit stop / scope cancellation — let it tear the loop down cleanly.
+                throw e
             } catch (e: Exception) {
                 LL.e(e)
-                connectionState.value = ConnectionState.Disconnected
+                // A dropped connection (Wi-Fi blip, device sleep) is transient: keep the loop alive
+                // and stay in Connecting so we transparently re-discover and reconnect. We must NOT
+                // emit Disconnected here — the UI treats that as a teardown signal and unbinds.
+                connectionState.value = ConnectionState.Connecting
                 session = null
-                // Switch connection type for next attempt
-//              TODO  useLocalConnection = !useLocalConnection
-                // Add delay before reconnecting
                 delay(RECONNECT_DELAY_MS)
             }
         }
@@ -111,9 +114,18 @@ class WebSocketClient(
             onCreate(this, newState)
 
             launch {
-                while (isActive) {
-                    sendSerialized(Ping())
-                    delay(3000)
+                try {
+                    while (isActive) {
+                        sendSerialized(Ping())
+                        delay(3000)
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // The socket aborted (e.g. Wi-Fi switch). Don't let this unguarded coroutine
+                    // crash the app — the receive loop below detects the dead socket and the outer
+                    // reconnect loop takes over.
+                    LL.e(e)
                 }
             }
             while (isActive) {
@@ -130,18 +142,17 @@ class WebSocketClient(
         }
     }
 
-    private suspend fun findServer(useLocalConnection: Boolean, localUrls: List<String>): AddressResponse? =
+    private suspend fun findServer(
+        useLocalConnection: Boolean,
+        priorityUrls: List<String>,
+        scanUrls: List<String>,
+    ): AddressResponse? =
         if (useLocalConnection) {
-            // Try to use cached local address or scan for one
-            if (cachedLocalAddress == null) {
-                cachedLocalAddress = client.scanHosts(localUrls) //todo start with local??
-            }
-            cachedLocalAddress?.let { localAddress ->
-                runCatching {
-                    val local = client.get(localAddress.fromUrl + "socket/address").body<AddressResponse>()
-                    local.apply { fromUrl = localAddress.fromUrl }
-                }.getOrNull()
-            }
+            // Always scan. scanHosts probes the last-known-good addresses in parallel with the
+            // subnet, so this stays fast when the device hasn't moved and still re-discovers it
+            // after a Wi-Fi switch. No address cache: a stale cached IP would otherwise pin us to
+            // a host that no longer exists on the new network.
+            client.scanHosts(priorityUrls, scanUrls)
         } else {
             runCatching {
                 val remoteAddress = client.get(REMOTE_URL + "socket/address").body<AddressResponse>()

@@ -152,7 +152,7 @@ class KtorTest : KoinTest {
         val messageReceived = CompletableDeferred<BaseMessage>()
 
         val webSocketJob = launch(Dispatchers.Default.limitedParallelism(1)) {
-            webSocketClient.startWebSocket(listOf(ACCESS_POINT_URL + "socket/address"), { ses, state ->
+            webSocketClient.startWebSocket(emptyList(), listOf(ACCESS_POINT_URL + "socket/address"), { ses, state ->
                 ses.sendSerialized(Session(g.session() ?: ""))
                 ses.sendSerialized(Get("camera"))
                 ses.sendSerialized(Ping())

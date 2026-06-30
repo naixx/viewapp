@@ -28,7 +28,13 @@ class WebSocketService : Service() {
     }
 
     private val webSocketClient: WebSocketClient by inject()
-    private var serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    // Safety net: socket aborts during a network switch can surface as uncaught exceptions on
+    // engine/teardown coroutines. Without a handler they reach the thread's default handler and
+    // crash the app; here we just log and let the reconnect loop recover.
+    private val connectionExceptionHandler = CoroutineExceptionHandler { _, e -> LL.e(e) }
+    private var serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob() + connectionExceptionHandler)
+    private var connectionJob: Job? = null
     val messages = MutableSharedFlow<BaseMessage>(1)
     private val storageProvider: StorageProvider by inject()
     val connectionState = webSocketClient.connectionState
@@ -66,12 +72,22 @@ class WebSocketService : Service() {
     }
 
     private fun startWebSocketConnection() {
+        // Idempotent: the service is started from multiple places (onCreate's
+        // startForegroundService, the Connect button, apiLogin). Without this guard each call
+        // would launch another infinite reconnect loop, so after one connected the others would
+        // keep scanning and fight over the single WebSocket session.
+        if (connectionJob?.isActive == true) {
+            LL.i("connection loop already running; ignoring start")
+            return
+        }
         if (!serviceScope.isActive)
-            serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-        val urls = Prefs.lastConnectedIp.toList() + generateLocalServer(this) + WIFI_URL
-        LL.e(urls.joinToString("\n"))
-        serviceScope.launch {
-            webSocketClient.startWebSocket(urls, ::onSessionCreated) {
+            serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob() + connectionExceptionHandler)
+        val priorityUrls = Prefs.lastConnectedIp.toList()
+        val scanUrls = generateLocalServer(this) + WIFI_URL
+        LL.e((priorityUrls).joinToString(", "))
+        LL.e((priorityUrls + scanUrls).joinToString("\n"))
+        connectionJob = serviceScope.launch {
+            webSocketClient.startWebSocket(priorityUrls, scanUrls, ::onSessionCreated) {
                 LL.i(it)
                 launch {
                     messages.emit(it)

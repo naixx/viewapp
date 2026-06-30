@@ -1,5 +1,9 @@
 package com.github.naixx.viewapp.ui
 
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.LinkProperties
+import android.net.Network
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,12 +31,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import com.github.naixx.viewapp.network.currentWifiSubnetLabel
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
@@ -566,10 +572,28 @@ class StatusScreen : Screen {
         }
     }
 
+    /** Current Wi-Fi subnet label that recomputes whenever the active network changes. */
+    @Composable
+    private fun rememberCurrentSubnetLabel(): String? {
+        val context = LocalContext.current
+        return produceState(initialValue = currentWifiSubnetLabel(context), context) {
+            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            val callback = object : ConnectivityManager.NetworkCallback() {
+                private fun refresh() { value = currentWifiSubnetLabel(context) }
+                override fun onAvailable(network: Network) = refresh()
+                override fun onLost(network: Network) = refresh()
+                override fun onLinkPropertiesChanged(network: Network, linkProperties: LinkProperties) = refresh()
+            }
+            cm.registerDefaultNetworkCallback(callback)
+            awaitDispose { cm.unregisterNetworkCallback(callback) }
+        }.value
+    }
+
     @Composable
     private fun ServiceControls(bound: Boolean, conn: ConnectionState, onStart: () -> Unit, onStop: () -> Unit) {
         if (!bound) {
-            VSmallButton("Connect") {
+            val subnet = rememberCurrentSubnetLabel()
+            VSmallButton(if (subnet != null) "Connect · $subnet" else "Connect") {
                 onStart()
             }
         } else {
