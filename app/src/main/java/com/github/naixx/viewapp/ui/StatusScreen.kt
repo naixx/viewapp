@@ -89,6 +89,16 @@ private fun DynamicChangeEntry.toRampInfo() = RampInfo(
     endFrame = endFrame ?: 0,
 )
 
+/**
+ * The running time-lapse's camera line. When the camera drops off (powered off, cable) the device sends
+ * `camera {connected:false, model:""}`, which used to read "running | unknown connected".
+ */
+internal fun cameraStatusLine(statusMessage: String?, camera: ConnectedMessage): String {
+    val s = statusMessage ?: "unknown"
+    return if (camera.connected) "$s | ${camera.model.ifEmpty { "unknown" }} connected"
+    else "$s | camera disconnected"
+}
+
 class StatusScreen : Screen {
 
     @Composable
@@ -338,10 +348,8 @@ class StatusScreen : Screen {
         // Camera-connection line needs the ConnectedMessage for the model name. It's optional —
         // the device sends it once on camera connect, so it can be absent for a whole session.
         connected?.let {
-            val s = status?.message ?: "unknown"
-            val model = it.model
             Text(
-                text = "$s | ${model.ifEmpty { "unknown" }} connected",
+                text = cameraStatusLine(status?.message, it),
                 style = MaterialTheme.typography.bodyMedium
             )
 
