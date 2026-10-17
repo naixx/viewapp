@@ -15,7 +15,7 @@ class SettingsMessageTest {
         assertEquals("settings", result.type)
 
         // Test camera settings values
-        val settings = result.settings
+        val settings = result.settings!!
         assertEquals("30s", settings.shutter)
         assertEquals("UNKNOWN", settings.aperture)
         assertEquals("100", settings.iso)

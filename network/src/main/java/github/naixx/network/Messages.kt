@@ -205,7 +205,8 @@ data class ConnectedMessage(
 @Serializable
 @SerialName("settings")
 data class SettingsMessage(
-    val settings: CameraSettings,
+    // null when no camera is connected: the device replies `{"settings":null}` (main.js `get settings`).
+    val settings: CameraSettings?,
     override val type: String
 ) : BaseMessage()
 
@@ -838,8 +839,9 @@ data class Status(
     // Active live (dynamicChange) ramps, keyed by parameter name (manualOffsetEv, interval, …).
     // Present only while a parameter is ramping; the device deletes the entry when it completes.
     val dynamicChange: Map<String, DynamicChangeEntry> = emptyMap(),
-    val trackingTilt: Int = 0,
-    val trackingPan: Int = 0,
+    // Degrees accumulated by sun/moon tracking (`+= steps / stepsPerDegree`), so fractional.
+    val trackingTilt: Double = 0.0,
+    val trackingPan: Double = 0.0,
     val latitude: Double? = null,
     val longitude: Double? = null,
     val altitude: Double? = null,
@@ -880,7 +882,8 @@ data class ExposureStatus(
     val highlights: JsonElement? = null,
     val rate: Double? = null,
     val direction: Double = 0.0,
-    val highlightProtection: Int? = null,
+    // Steps by ±0.333 while highlights are clipped (exposure.js), so fractional.
+    val highlightProtection: Double? = null,
     val intervalSeconds: Double? = null,
     val nightRatio: Double? = null,
     val nightRefEv: Double? = null,

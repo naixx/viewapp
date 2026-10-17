@@ -101,7 +101,7 @@ val status = Status(
     message = "starting",
     autoSettings = AutoSettings(paddingTimeMs = 2000.0),
     exposure = Exposure(
-        status = ExposureStatus(rampEv = null, highlights = null, rate = null, direction = 1.0, highlightProtection = 0),
+        status = ExposureStatus(rampEv = null, highlights = null, rate = null, direction = 1.0, highlightProtection = 0.0),
         config = ExposureConfig(
             sunrise = Sunrise(
                 p = 0.97,
@@ -148,8 +148,8 @@ val status = Status(
     tiltDiff = 0,
     trackingPanEnabled = false,
     trackingTiltEnabled = false,
-    trackingTilt = 0,
-    trackingPan = 0
+    trackingTilt = 0.0,
+    trackingPan = 0.0
 )
 
 val sampleClipInfo = TimelapseClipInfo(

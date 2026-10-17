@@ -262,7 +262,7 @@ class StatusScreen : Screen {
                 // Idle: manual camera control (when a camera is connected) above the program editor
                 // (mirrors the original CameraPage + IntervalometerPage setup view).
                 if (connected?.connected == true) {
-                    settings?.let { CameraControls(it.settings, thumbnail, send) }
+                    settings?.settings?.let { CameraControls(it, thumbnail, send) }
                     Spacer(modifier = Modifier.height(16.dp))
                     HorizontalDivider()
                 }

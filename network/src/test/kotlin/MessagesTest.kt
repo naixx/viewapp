@@ -81,7 +81,7 @@ class MessagesTest {
         val raw = MessagesTest::class.java.getResource("/settings_full.json")!!.readText()
         val result = polyJson.decodeFromString<BaseMessage>(raw)
         assertTrue(result is SettingsMessage)
-        val s = (result as SettingsMessage).settings
+        val s = (result as SettingsMessage).settings!!
         assertEquals("1/1600", s.shutter)
         assertEquals(55, s.details?.shutter?.list?.size)
         assertEquals(89, s.details?.iso?.list?.size)
@@ -94,8 +94,34 @@ class MessagesTest {
         val raw = MessagesTest::class.java.getResource("/settings_idle.json")!!.readText()
         val result = polyJson.decodeFromString<BaseMessage>(raw)
         assertTrue(result is SettingsMessage)
-        assertNull((result as SettingsMessage).settings.shutter)
-        assertNull(result.settings.iso)
+        assertNull((result as SettingsMessage).settings!!.shutter)
+        assertNull(result.settings!!.iso)
+    }
+
+    @Test
+    fun testNoCameraSettingsDeserialization() {
+        // Regression: with no camera connected the device replies to Get("settings") with
+        // `{"settings":null}` — the app requests settings on every (re)connect.
+        val result = polyJson.decodeFromString<BaseMessage>("""{"settings":null,"type":"settings"}""")
+        assertTrue(result is SettingsMessage)
+        assertNull((result as SettingsMessage).settings)
+    }
+
+    @Test
+    fun testFractionalStatusNumbers() {
+        // Regression: exposure.status.highlightProtection steps by 0.333 while highlights clip
+        // (exposure.js), and trackingPan/Tilt accumulate fractional degrees during sun/moon tracking.
+        // Integer fields dropped every such intervalometerStatus frame (seen on device 2026-08/09).
+        val raw = MessagesTest::class.java.getResource("/intervalometerStatus.json")!!.readText()
+            .replace("\"highlightProtection\":0,", "\"highlightProtection\":0.666,")
+            .replace("\"trackingPan\":0,", "\"trackingPan\":12.34,")
+            .replace("\"trackingTilt\":0,", "\"trackingTilt\":-3.5,")
+        val result = polyJson.decodeFromString<BaseMessage>(raw)
+        assertTrue(result is IntervalometerStatus)
+        val s = (result as IntervalometerStatus).status
+        assertEquals(0.666, s.exposure.status.highlightProtection)
+        assertEquals(12.34, s.trackingPan)
+        assertEquals(-3.5, s.trackingTilt)
     }
 
     @Test
