@@ -5,11 +5,14 @@ import android.R
 import android.app.*
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.ConnectivityManager
 import android.os.Binder
+import android.os.Build
 import android.util.Base64
 import androidx.core.app.*
 import com.github.naixx.logger.LL
 import com.github.naixx.viewapp.network.generateLocalServer
+import com.github.naixx.viewapp.network.holdViewAp
 import com.github.naixx.viewapp.ui.MainActivity
 import com.github.naixx.viewapp.utils.AppForeground
 import com.github.naixx.viewapp.utils.Prefs
@@ -35,6 +38,7 @@ class WebSocketService : Service() {
     private val connectionExceptionHandler = CoroutineExceptionHandler { _, e -> LL.e(e) }
     private var serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob() + connectionExceptionHandler)
     private var connectionJob: Job? = null
+    private var apJob: Job? = null
     val messages = MutableSharedFlow<BaseMessage>(1)
     private val storageProvider: StorageProvider by inject()
     val connectionState = webSocketClient.connectionState
@@ -96,6 +100,7 @@ class WebSocketService : Service() {
             }
         }
         serviceScope.launch {
+            if (Prefs.apMode) setAccessPointMode(true) // the device was last reached on its hotspot
             webSocketClient.connectionState.collect {
                 if (it is ConnectionState.LoginRequired) {
                     //delay(5000)
@@ -106,8 +111,24 @@ class WebSocketService : Service() {
                     sendNotification("Connecting to VIEW", R.drawable.ic_popup_sync)
                 } else if (it is ConnectionState.Connected) {
                     sendNotification("Connected to VIEW", R.drawable.ic_menu_gallery)
+                    setAccessPointMode(it.address.fromUrl == ACCESS_POINT_URL)
                 }
             }
+        }
+    }
+
+    /**
+     * On the VIEW's hotspot keep the phone there ([holdViewAp]); on a shared Wi-Fi let it go.
+     * Only called from the connection-state collector, so [apJob] needs no locking; cancelling
+     * [serviceScope] (Stop, onDestroy) releases the hotspot too.
+     */
+    private fun setAccessPointMode(on: Boolean) {
+        Prefs.apMode = on
+        if (!on) {
+            apJob?.cancel()
+            apJob = null
+        } else if (apJob?.isActive != true && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            apJob = serviceScope.launch { getSystemService(ConnectivityManager::class.java).holdViewAp() }
         }
     }
 

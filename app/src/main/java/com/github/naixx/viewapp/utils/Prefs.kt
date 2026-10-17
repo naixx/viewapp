@@ -4,6 +4,7 @@ import com.github.naixx.prefs.PrefsObject
 import com.github.naixx.prefs.serialized
 import com.github.naixx.prefs.stringFlow
 import com.russhwolf.settings.Settings
+import com.russhwolf.settings.boolean
 import com.russhwolf.settings.nullableString
 import com.russhwolf.settings.observable.makeObservable
 import com.russhwolf.settings.string
@@ -16,4 +17,6 @@ object Prefs : PrefsObject {
     val password by settings.string(defaultValue = "")
     var session by settings.nullableString()
     var lastConnectedIp by serialized(setOf<String>())
+    // The device was last reached on its own hotspot (10.0.0.1): re-request it on the next start.
+    var apMode by settings.boolean(defaultValue = false)
 }
