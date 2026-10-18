@@ -56,6 +56,7 @@ import com.github.naixx.viewapp.ui.components.VSmallButton
 import com.github.naixx.viewapp.ui.components.cameraSettings
 import com.github.naixx.viewapp.ui.components.sampleHistogram
 import com.github.naixx.viewapp.ui.components.sampleProgram
+import com.github.naixx.viewapp.ui.components.sampleProgramRaw
 import com.github.naixx.viewapp.ui.components.status
 import com.github.naixx.viewapp.utils.activityViewModel
 import com.github.naixx.viewapp.utils.formatted
@@ -71,11 +72,14 @@ import github.naixx.network.Get
 import github.naixx.network.IntervalometerStatus
 import github.naixx.network.OutMessage
 import github.naixx.network.Program
+import github.naixx.network.ProgramDraft
 import github.naixx.network.SettingsMessage
 import github.naixx.network.Shutter
 import github.naixx.network.Status
 import github.naixx.network.Stop
+import github.naixx.network.UpdateProgram
 import kotlinx.coroutines.delay
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
@@ -281,7 +285,7 @@ class StatusScreen : Screen {
                     HistogramView(histogram?.histogram)
                 }
 
-                TimeLapseStatus(bound, connected, intervalStatus?.status, program?.program, send)
+                TimeLapseStatus(bound, connected, intervalStatus?.status, program?.program, program?.raw, send)
 
                 Spacer(modifier = Modifier.height(16.dp))
                 StopButton(send)
@@ -331,6 +335,7 @@ class StatusScreen : Screen {
         connected: ConnectedMessage?,
         status: Status?,
         program: Program?,
+        programRaw: JsonObject?,
         send: (OutMessage) -> Unit,
     ) {
         if (!bound) return
@@ -380,6 +385,11 @@ class StatusScreen : Screen {
             Spacer(modifier = Modifier.height(8.dp))
 
             RampingSection(status, send)
+
+            if (status.rampMode.equals("auto", ignoreCase = true) && programRaw != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                LiveRampingOptions(programRaw, status.cameraSettings?.details, send)
+            }
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -460,6 +470,40 @@ class StatusScreen : Screen {
                 active = status.dynamicChange["nightRefEv"]?.toRampInfo(),
                 currentFrame = status.frames,
             ) { v, f -> send(DynamicChange("nightRefEv", JsonPrimitive(v), f)) }
+        }
+    }
+
+    /**
+     * The ramping options of the running time-lapse: its exposure limits, and the options dialog whose edits go
+     * to the VIEW with updateProgram. The core reads the limits and ramp parameters each frame.
+     */
+    @Composable
+    private fun LiveRampingOptions(programRaw: JsonObject, details: CameraDetails?, send: (OutMessage) -> Unit) {
+        // Edits show at once; the device's program replaces them when it answers Get("program").
+        var draft by remember(programRaw) { mutableStateOf(ProgramDraft(programRaw)) }
+        var open by remember { mutableStateOf(false) }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = rampLimitsLine(draft, details),
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f)
+            )
+            VSmallButton(rampingSummary(draft)) { open = true }
+        }
+        if (open) {
+            RampingOptionsDialog(
+                draft, details, live = true,
+                onChange = { key, value ->
+                    draft = draft.set(key, value)
+                    send(UpdateProgram(JsonObject(mapOf(key to value))))
+                    send(Get("program"))
+                },
+                onDismiss = { open = false },
+            )
         }
     }
 
@@ -649,6 +693,16 @@ class StatusScreen : Screen {
 
     @Preview(showBackground = true)
     @Composable
+    private fun LiveRampingOptionsPreview() {
+        Surface {
+            Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                LiveRampingOptions(sampleProgramRaw, cameraSettings.details, send = {})
+            }
+        }
+    }
+
+    @Preview(showBackground = true)
+    @Composable
     private fun ExposureSectionPreview() {
         val settings = SettingsMessage(
             settings = cameraSettings.copy(
@@ -731,7 +785,7 @@ class StatusScreen : Screen {
                 Spacer(modifier = Modifier.height(8.dp))
                 HistogramView(sampleHistogram.histogram)
                 Spacer(modifier = Modifier.height(8.dp))
-                TimeLapseStatus(true, connected, intervalStatus.status, sampleProgram, send = {})
+                TimeLapseStatus(true, connected, intervalStatus.status, sampleProgram, sampleProgramRaw, send = {})
                 Spacer(modifier = Modifier.height(8.dp))
                 ServiceControls(true, ConnectionState.Connecting, {}, {})
                 Spacer(modifier = Modifier.height(8.dp))

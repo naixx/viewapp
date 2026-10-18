@@ -87,7 +87,7 @@ fun EvLimitRow(
     }
 }
 
-private fun evMatches(a: Double?, b: Double?): Boolean =
+internal fun evMatches(a: Double?, b: Double?): Boolean =
     if (a == null || b == null) a == b else floor(a * 10) == floor(b * 10)
 
 /** A row of selectable chips (the original's `ion-segment`). */

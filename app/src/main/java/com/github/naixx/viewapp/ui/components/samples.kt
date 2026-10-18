@@ -63,30 +63,36 @@ val cameraSettings = CameraSettings(
     details = CameraDetails(
         shutter = Shutter(
             "1/640", 3.333, code = 66176, duration_ms = 100, cameraName = "1/640",
+            // EVs as the VIEW's Sony tables have them (1/64 s, ISO 100 and f/16 are 0; more light is negative),
+            // covering the sample program's limits.
             list = listOf(
                 ShutterEntry("1/2000", 5.0, 1, 0, "1/2000"),
                 ShutterEntry("1/640", 3.33, 2, 1, "1/640"),
-                ShutterEntry("1/100", 1.0, 3, 10, "1/100"),
-                ShutterEntry("1/30", -0.7, 4, 33, "1/30"),
-                ShutterEntry("1\"", -5.0, 5, 1000, "1\""),
+                ShutterEntry("1/100", 0.67, 3, 10, "1/100"),
+                ShutterEntry("1/30", -1.0, 4, 33, "1/30"),
+                ShutterEntry("1\"", -6.0, 5, 1000, "1\""),
+                ShutterEntry("20\"", -10.33, 6, 20000, "20\""),
             )
         ),
         aperture = Aperture(
             "8", -2.0,
             list = listOf(
-                ApertureEntry("2.8", -4.0, 1, "2.8"),
-                ApertureEntry("5.6", -2.0, 2, "5.6"),
-                ApertureEntry("8", -1.0, 3, "8"),
-                ApertureEntry("16", 1.0, 4, "16"),
+                ApertureEntry("1.4", -7.0, 1, "1.4"),
+                ApertureEntry("2.8", -5.0, 2, "2.8"),
+                ApertureEntry("5.6", -3.0, 3, "5.6"),
+                ApertureEntry("8", -2.0, 4, "8"),
+                ApertureEntry("11", -1.0, 5, "11"),
+                ApertureEntry("16", 0.0, 6, "16"),
             )
         ),
         iso = ISO(
             "100", 0.0,
             list = listOf(
                 ISOEntry("100", 0.0, 1, "100"),
-                ISOEntry("400", 2.0, 2, "400"),
-                ISOEntry("1600", 4.0, 3, "1600"),
-                ISOEntry("6400", 6.0, 4, "6400"),
+                ISOEntry("400", -2.0, 2, "400"),
+                ISOEntry("800", -3.0, 3, "800"),
+                ISOEntry("1600", -4.0, 4, "1600"),
+                ISOEntry("6400", -6.0, 5, "6400"),
             )
         )
     ),

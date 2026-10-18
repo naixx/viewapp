@@ -233,6 +233,10 @@ class MessagesTest {
         assertTrue(dc.contains("\"type\":\"dynamicChange\""), dc)
         assertTrue(dc.contains("\"parameter\":\"interval\""))
         assertTrue(dc.contains("\"frames\":30"))
+
+        val up = polyJson.encodeToString<OutMessage>(UpdateProgram(JsonObject(mapOf("isoMax" to JsonPrimitive(-6.0)))))
+        assertTrue(up.contains("\"type\":\"updateProgram\""), up)
+        assertTrue(up.contains("\"updates\":{\"isoMax\":-6.0}"), up)
     }
 
     @Test
