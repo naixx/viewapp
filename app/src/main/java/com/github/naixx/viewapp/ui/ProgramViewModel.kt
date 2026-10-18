@@ -38,7 +38,12 @@ class ProgramViewModel : ViewModel() {
         draft.value = draft.value?.let(transform)
     }
 
-    fun runMessage(): OutMessage? = draft.value?.let { Run(it.json, runDateMillis()) }
+    /**
+     * Always carries the start delay shown on the delay button (1 s unless picked). A program without one, as the
+     * VIEW has right after a reboot, never started: the core waits out the delay in 60 s steps and `undefined`
+     * is never reached (`intervalometer.js` delayed()). The VIEW's own menu sets it to 1 before a start.
+     */
+    fun runMessage(): OutMessage? = draft.value?.let { Run(it.set("delay", it.delay).json, runDateMillis()) }
 
     fun saveMessage(): OutMessage? = draft.value?.let { SaveProgram(it.json) }
 
