@@ -188,7 +188,9 @@ class StatusScreen : Screen {
             }
         }
 
-        if (conn is ConnectionState.Connected && timelapseViewModel!=null)
+        // Nothing to fetch before the first frame, and until then the VIEW may not have the clip yet:
+        // /clipinfo answers an empty 200 and the download failed right after every start.
+        if (conn is ConnectionState.Connected && timelapseViewModel != null && clip.frames > 0)
             LaunchedEffect(c) {
                 timelapseViewModel.downloadFrames(context, conn)
             }
