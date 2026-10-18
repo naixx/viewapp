@@ -950,6 +950,8 @@ data class CameraSettings(
     val battery: Double? = null,
     val focusPos: Double? = null,
     val iso: String? = null,
+    // Sony drive mode by the PTP reference's name, e.g. "Continuous Shooting Lo"; VIEW firmware sends it from 2026-10.
+    val driveMode: String? = null,
     val details: CameraDetails? = null
 )
 

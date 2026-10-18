@@ -60,6 +60,7 @@ val cameraSettings = CameraSettings(
     shutter = "1/640",
     aperture = "8",
     iso = "100",
+    driveMode = "Continuous Shooting Lo",
     details = CameraDetails(
         shutter = Shutter(
             "1/640", 3.333, code = 66176, duration_ms = 100, cameraName = "1/640",

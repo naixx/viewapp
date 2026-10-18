@@ -95,6 +95,7 @@ fun CameraControls(
             ExposureChip("Aperture", "aperture", "f/${settings.aperture ?: "—"}", settings.aperture, apertureOpts, Modifier.weight(1f), send)
             ExposureChip("ISO", "iso", "ISO ${settings.iso ?: "—"}", settings.iso, isoOpts, Modifier.weight(1f), send)
         }
+        driveModeLine(settings.driveMode)?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
 
         // EV nudge + manual focus on one row.
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {

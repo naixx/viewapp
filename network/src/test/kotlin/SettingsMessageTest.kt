@@ -9,6 +9,14 @@ class SettingsMessageTest {
     private val json = Json { ignoreUnknownKeys = true }
 
     @Test
+    fun decodesTheDriveMode() {
+        val result = json.decodeFromString<SettingsMessage>(
+            """{"type":"settings","settings":{"shutter":"1/200","iso":"125","driveMode":"Continuous Shooting Lo"}}"""
+        )
+        assertEquals("Continuous Shooting Lo", result.settings?.driveMode)
+    }
+
+    @Test
     fun testSettingsDeserialization() {
         val result = json.decodeFromString<SettingsMessage>(settingJson)
 
@@ -21,6 +29,7 @@ class SettingsMessageTest {
         assertEquals("100", settings.iso)
         assertEquals(72.0, settings.battery)
         assertEquals(0.0, settings.focusPos)
+        assertEquals(null, settings.driveMode) // firmware before 2026-10 does not send it
 
         // Test details (present in this full-settings fixture; nullable in the model for idle states)
         val details = settings.details!!
