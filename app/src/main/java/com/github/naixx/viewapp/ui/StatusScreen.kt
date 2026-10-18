@@ -102,6 +102,9 @@ internal fun cameraStatusLine(statusMessage: String?, camera: ConnectedMessage):
     else "$s | camera disconnected"
 }
 
+/** Frames so far and the clip length they make at 30 fps (it used to multiply in the interval: capture time / 30). */
+internal fun framesLine(frames: Int): String = "$frames frames (${String.format(Locale.US, "%.1f", frames / 30f)}s @30fps)"
+
 class StatusScreen : Screen {
 
     @Composable
@@ -352,17 +355,13 @@ class StatusScreen : Screen {
         // Gating them behind `connected` hid the whole running-edit UI whenever that message was
         // missing (which is exactly what was happening), so they live under `status` directly.
         status?.let { status ->
-            val frames = status.frames
-            val interval = status.intervalMs / 1000
-            val duration = (frames * interval) / 30f
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "$frames frames (${String.format(Locale.US, "%.1f", duration)}s @30fps)",
+                    text = framesLine(status.frames),
                     style = MaterialTheme.typography.bodyMedium
                 )
                 if (status.rampMode == "fixed") {
