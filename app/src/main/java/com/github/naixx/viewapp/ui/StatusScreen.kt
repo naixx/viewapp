@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import coil3.compose.AsyncImage
 import com.github.naixx.viewapp.ui.components.FrameHistogramView
+import com.github.naixx.viewapp.ui.components.FrameProgressBar
 import com.github.naixx.viewapp.ui.components.HistogramView
 import com.github.naixx.viewapp.ui.components.LiveEditButton
 import com.github.naixx.viewapp.ui.components.LiveSelectButton
@@ -59,6 +60,7 @@ import com.github.naixx.viewapp.ui.components.status
 import com.github.naixx.viewapp.utils.activityViewModel
 import com.github.naixx.viewapp.utils.formatted
 import github.naixx.network.Battery
+import github.naixx.network.CameraDetails
 import github.naixx.network.CameraSettings
 import github.naixx.network.Clip
 import github.naixx.network.ConnectedMessage
@@ -70,6 +72,7 @@ import github.naixx.network.IntervalometerStatus
 import github.naixx.network.OutMessage
 import github.naixx.network.Program
 import github.naixx.network.SettingsMessage
+import github.naixx.network.Shutter
 import github.naixx.network.Status
 import github.naixx.network.Stop
 import kotlinx.coroutines.delay
@@ -259,6 +262,11 @@ class StatusScreen : Screen {
                             .aspectRatio(16f / 9f),
                         contentScale = ContentScale.Crop
                     )
+                }
+
+                intervalStatus?.status?.let { status ->
+                    Spacer(modifier = Modifier.height(4.dp))
+                    FrameProgressBar(status, deviceNowMs = { viewModel.deviceClock.nowMs() })
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -697,6 +705,8 @@ class StatusScreen : Screen {
             intervalMs = 60000.0,
             message = "running",
             rampMode = "fixed",
+            captureStartTime = 1000.0,
+            cameraSettings = cameraSettings.copy(shutter = "8s", details = CameraDetails(shutter = Shutter("8s", ev = -9.0))),
             exposure = status.exposure.copy(
                 status = status.exposure.status.copy(
                     manualOffsetEv = 0.0,
@@ -715,6 +725,9 @@ class StatusScreen : Screen {
 
         Surface {
             Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                // 25 s into the 60 s interval: 8 s exposure and 2 s processing are done, waiting for the next frame.
+                FrameProgressBar(previewStatus, deviceNowMs = { 1_025_000L })
+                Spacer(modifier = Modifier.height(8.dp))
                 HistogramView(sampleHistogram.histogram)
                 Spacer(modifier = Modifier.height(8.dp))
                 TimeLapseStatus(true, connected, intervalStatus.status, sampleProgram, send = {})

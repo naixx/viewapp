@@ -3,6 +3,7 @@ package com.github.naixx.viewapp.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.naixx.logger.LL
+import com.github.naixx.viewapp.utils.DeviceClock
 import com.github.naixx.viewapp.utils.EventBus
 import github.naixx.network.BaseMessage
 import github.naixx.network.Battery
@@ -70,11 +71,14 @@ class MainViewModel : ViewModel(), KoinComponent {
     val histogram get() = messageFlow<Histogram>()
     val program get() = messageFlow<TimelapseProgram>()
 
+    val deviceClock = DeviceClock()
+
     init {
         connectionState.onEach {
             if (it is ConnectionState.Disconnected) {
                 messageFlows.values.forEach { flow -> flow.value = null }
             }
+            if (it !is ConnectionState.Connected) deviceClock.onDisconnected()
         }.launchIn(viewModelScope)
     }
 
@@ -86,6 +90,9 @@ class MainViewModel : ViewModel(), KoinComponent {
         }
         if (message is CaptureError) {
             EventBus.error(message.message)
+        }
+        if (message is IntervalometerStatus) {
+            deviceClock.onStatus(message.status.captureStartTime, System.currentTimeMillis())
         }
 
         val flow = messageFlows.getOrPut(message::class) {

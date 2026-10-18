@@ -58,6 +58,7 @@ class MessagesTest {
         assertEquals("intervalometerStatus", result.type)
         assertEquals(0, result.status.currentPlanIndex)
         assertTrue(result.status.running)
+        assertEquals(1782769255.377, result.status.captureStartTime)
     }
 
     @Test

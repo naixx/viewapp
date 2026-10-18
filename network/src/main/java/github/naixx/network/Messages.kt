@@ -822,6 +822,8 @@ data class Status(
     val first: Boolean = true,
     val rampMode: String? = null,
     val startTime: Double = 0.0,
+    // Device-clock epoch seconds when the current frame's capture started; a status is sent right then.
+    val captureStartTime: Double? = null,
     val bufferSeconds: Double = 0.0,
     val cameraSettings: CameraSettings? = null,
     //val hdrSet: Map<String, @Contextual Any?>,
