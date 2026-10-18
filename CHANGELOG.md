@@ -3,6 +3,48 @@
 All notable changes to ViewApp are documented here. This project loosely follows
 [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [2.1] — 2026-10-18
+
+Camera controls on the status screen, a closer look at a running time-lapse, and a round of fixes from
+real night runs.
+
+> Works with VIEW firmware **1.8.54+**; get **1.8.55** ([`naixx/VIEW`](https://github.com/naixx/VIEW/releases/latest))
+> for the drive mode line, a notification when a running time-lapse stops producing frames, and a much
+> faster VIEW boot.
+
+### Added
+
+- **Camera controls** — shutter, aperture and ISO pickers with the camera's own names, EV −/+, a test
+  shot and live view, right on the status screen.
+- **Histogram of the frame under the player** — follows scrubbing and playback on the running-status
+  and clip screens; computed in the app with the VIEW's own formula.
+- **Frame progress bar** on the running status screen, like the VIEW's OLED: exposure, download and
+  processing, and the time since the capture started, so a late or stuck frame is visible from the
+  phone.
+- **Ramping options of a running time-lapse** — the exposure limits are shown by the camera's names
+  (e.g. "Limits: ISO 400-6400, aperture f/1.4-f/8, shutter up to 20""), and the Ramping Options dialog
+  can change the ramp parameters and the ISO, aperture and shutter limits mid-run; they apply from the
+  next frame.
+- **Drive mode** of the camera under the exposure, e.g. "Drive mode: Continuous Shooting Lo (Single
+  from the next shot)" — the VIEW switches to Single before it shoots (firmware 1.8.55+).
+
+### Changed
+
+- In access-point mode the app keeps the phone on the VIEW hotspot: Android used to leave it for mobile
+  data (the hotspot has no internet) and not rejoin it after the hotspot restarted.
+
+### Fixed
+
+- Connecting when the phone and the VIEW are on different subnets.
+- Status and settings parsing for fractional and null values (no camera connected, highlight
+  protection stepping by 1/3).
+- "camera disconnected" instead of "unknown connected" when the camera drops off mid-run.
+- The clip length on the running status screen (it divided the capture time by 30).
+- "Download failed" right after starting a time-lapse: frames are no longer fetched before the first
+  one.
+- A time-lapse started from the app after a VIEW reboot could wait forever without a frame: the start
+  delay is now always sent.
+
 ## [2.0] — 2026-06-29
 
 The headline of this release: **you can now create and launch time-lapses directly from the app** —
