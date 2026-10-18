@@ -4,7 +4,6 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.LinkProperties
 import android.net.Network
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -43,6 +42,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import coil3.compose.AsyncImage
+import com.github.naixx.viewapp.ui.components.FrameHistogramView
+import com.github.naixx.viewapp.ui.components.HistogramView
 import com.github.naixx.viewapp.ui.components.LiveEditButton
 import com.github.naixx.viewapp.ui.components.LiveSelectButton
 import com.github.naixx.viewapp.ui.components.OnConnectedEffect
@@ -65,7 +66,6 @@ import github.naixx.network.ConnectionState
 import github.naixx.network.DynamicChange
 import github.naixx.network.DynamicChangeEntry
 import github.naixx.network.Get
-import github.naixx.network.Histogram
 import github.naixx.network.IntervalometerStatus
 import github.naixx.network.OutMessage
 import github.naixx.network.Program
@@ -262,7 +262,11 @@ class StatusScreen : Screen {
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
-                HistogramView(histogram)
+                if (timelapseViewModel != null) {
+                    FrameHistogramView(currentFrameIndex) { timelapseViewModel.histogram(context, it) }
+                } else {
+                    HistogramView(histogram?.histogram)
+                }
 
                 TimeLapseStatus(bound, connected, intervalStatus?.status, program?.program, send)
 
@@ -305,26 +309,6 @@ class StatusScreen : Screen {
                 },
                 dismissButton = { TextButton(onClick = { showStopConfirm = false }) { Text("Cancel") } },
             )
-        }
-    }
-
-    @Composable
-    private fun HistogramView(histogram: Histogram?) {
-        histogram?.let {
-            val color = MaterialTheme.colorScheme.onSurface
-            Canvas(modifier = Modifier.fillMaxWidth().height(80.dp)) {
-                val barWidth = size.width / it.histogram.size
-                val maxValue = it.histogram.maxOrNull() ?: 1
-
-                it.histogram.forEachIndexed { index, value ->
-                    val height = (value.toFloat() / maxValue) * size.height
-                    drawRect(
-                        color = color,
-                        topLeft = androidx.compose.ui.geometry.Offset(index * barWidth, size.height - height),
-                        size = androidx.compose.ui.geometry.Size(barWidth, height)
-                    )
-                }
-            }
         }
     }
 
@@ -634,7 +618,7 @@ class StatusScreen : Screen {
     @Composable
     private fun HistogramPreview() {
         Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-            HistogramView(sampleHistogram)
+            HistogramView(sampleHistogram.histogram)
         }
     }
 
@@ -731,7 +715,7 @@ class StatusScreen : Screen {
 
         Surface {
             Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                HistogramView(sampleHistogram)
+                HistogramView(sampleHistogram.histogram)
                 Spacer(modifier = Modifier.height(8.dp))
                 TimeLapseStatus(true, connected, intervalStatus.status, sampleProgram, send = {})
                 Spacer(modifier = Modifier.height(8.dp))

@@ -55,6 +55,7 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import com.github.naixx.viewapp.encoding.EncodingResult
 import com.github.naixx.viewapp.ui.components.AppBarWithBack
+import com.github.naixx.viewapp.ui.components.FrameHistogramView
 import com.github.naixx.viewapp.ui.components.OnConnectedEffect
 import com.github.naixx.viewapp.ui.components.TimelapsePlayer
 import com.github.naixx.viewapp.ui.components.VButton
@@ -200,6 +201,13 @@ class ClipInfoScreen(val clip: Clip) : Screen {
                     onBackClick = { navigator.pop() },
                     modifier = Modifier.align(Alignment.TopStart)
                 )
+            }
+
+            if (frames.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                FrameHistogramView(currentFrameIndex, Modifier.padding(horizontal = 16.dp)) {
+                    timelapseViewModel.histogram(context, it)
+                }
             }
 
             Spacer(modifier = Modifier.height(8.dp))

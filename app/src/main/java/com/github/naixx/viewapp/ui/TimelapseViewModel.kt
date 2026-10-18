@@ -7,6 +7,7 @@ import com.github.naixx.compose.*
 import com.github.naixx.logger.LL
 import com.github.naixx.viewapp.encoding.*
 import com.github.naixx.viewapp.utils.EventBus
+import com.github.naixx.viewapp.utils.lumaHistogram
 import github.naixx.db.TimelapseClipInfoDao
 import github.naixx.network.*
 import kotlinx.coroutines.*
@@ -14,6 +15,7 @@ import kotlinx.coroutines.flow.*
 import org.koin.core.component.*
 import org.koin.core.parameter.parametersOf
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * How many consecutive fully-failed batches we tolerate before aborting a download. On a flaky
@@ -44,6 +46,9 @@ class TimelapseViewModel(
     private var totalFrames: Int = clip.frames
     private val videoExportRepository: VideoExportRepository by inject()
     private val timelapseClipInfoDao: TimelapseClipInfoDao by inject()
+
+    /** Frame histograms by frame number; ~1 KB each, computed once so playback doesn't redo them. */
+    private val histograms = ConcurrentHashMap<Int, List<Int>>()
 
     val clipInfo: StateFlow<TimelapseClipInfo?> = timelapseClipInfoDao
         .getTimelapseClipInfo(clip.name)
@@ -250,6 +255,15 @@ class TimelapseViewModel(
     }
 
     /**
+     * Luma histogram of a cached frame, computed from its JPEG (the VIEW's `histogram` message carries no
+     * frame number, exists only for auto-ramped frames, and never for frames downloaded afterwards).
+     */
+    suspend fun histogram(context: Context, frameIndex: Int): List<Int>? =
+        histograms[frameIndex] ?: withContext(ioDispatcher) {
+            getFrameFile(context, frameIndex)?.let(::lumaHistogram)?.also { histograms[frameIndex] = it }
+        }
+
+    /**
      * Delete all cached frames for this clip
      */
     fun deleteCache(context: Context) {
@@ -271,6 +285,7 @@ class TimelapseViewModel(
                 }
                 cacheDir.delete()
             }
+            histograms.clear()
             downloadedFrames.value = emptyList()
         }
     }
