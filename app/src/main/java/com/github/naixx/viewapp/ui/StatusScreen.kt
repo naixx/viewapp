@@ -295,7 +295,7 @@ class StatusScreen : Screen {
                     HistogramView(histogram?.histogram)
                 }
 
-                TimeLapseStatus(bound, connected, intervalStatus?.status, program?.program, program?.raw, send)
+                TimeLapseStatus(bound, connected, intervalStatus?.status, program?.program, program?.raw, settings?.settings?.details, send)
 
                 Spacer(modifier = Modifier.height(16.dp))
                 StopButton(send)
@@ -346,6 +346,9 @@ class StatusScreen : Screen {
         status: Status?,
         program: Program?,
         programRaw: JsonObject?,
+        // The camera's value lists for the limits UI, from the settings message. The status carried them too until
+        // VIEW firmware 2026-10-21 (15 of its 17 KB, sent on every frame); older firmware still fills them there.
+        details: CameraDetails?,
         send: (OutMessage) -> Unit,
     ) {
         if (!bound) return
@@ -398,7 +401,7 @@ class StatusScreen : Screen {
 
             if (status.rampMode.equals("auto", ignoreCase = true) && programRaw != null) {
                 Spacer(modifier = Modifier.height(8.dp))
-                LiveRampingOptions(programRaw, status.cameraSettings?.details, send)
+                LiveRampingOptions(programRaw, details ?: status.cameraSettings?.details, send)
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -798,7 +801,7 @@ class StatusScreen : Screen {
                 Spacer(modifier = Modifier.height(8.dp))
                 HistogramView(sampleHistogram.histogram)
                 Spacer(modifier = Modifier.height(8.dp))
-                TimeLapseStatus(true, connected, intervalStatus.status, sampleProgram, sampleProgramRaw, send = {})
+                TimeLapseStatus(true, connected, intervalStatus.status, sampleProgram, sampleProgramRaw, cameraSettings.details, send = {})
                 Spacer(modifier = Modifier.height(8.dp))
                 ServiceControls(true, ConnectionState.Connecting, {}, {})
                 Spacer(modifier = Modifier.height(8.dp))
