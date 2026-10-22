@@ -3,6 +3,20 @@
 All notable changes to ViewApp are documented here. This project loosely follows
 [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [2.2] — 2026-10-22
+
+Keeps the ramping limits working with VIEW firmware 1.8.56.
+
+> Works with VIEW firmware **1.8.54+**; get **1.8.56** ([`naixx/VIEW`](https://github.com/naixx/VIEW/releases/latest))
+> for much lower CPU load and battery drain while shooting, and the new Cable Release mode on the VIEW.
+
+### Fixed
+
+- **Ramping options of a running time-lapse** with VIEW firmware 1.8.56: the ISO, aperture and shutter limits
+  take the camera's value lists from the settings message. Firmware 1.8.56 no longer repeats those lists in the
+  status it sends on every frame (1.8 KB instead of 17 KB), so with ViewApp 2.1 the limits had nothing to pick
+  from. Older firmware keeps working as before.
+
 ## [2.1] — 2026-10-18
 
 Camera controls on the status screen, a closer look at a running time-lapse, and a round of fixes from

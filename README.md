@@ -2,7 +2,7 @@
 
 ViewApp is an unofficial Android app for the **Timelapse+ VIEW** intervalometer. It requires custom
 VIEW firmware available here: [VIEW Releases](https://github.com/naixx/VIEW/releases/latest). Please
-install the latest version (**1.8.55+**; the app also works with 1.8.54).
+install the latest version (**1.8.56+**; the app also works with 1.8.54 and 1.8.55).
 
 The app works only on local networks — either the VIEW's own Wi-Fi hotspot or a shared Wi-Fi. It does
 **not** connect to the remote `app.view.tl` host. The new firmware can still connect to the remote host
