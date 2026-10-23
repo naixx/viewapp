@@ -108,8 +108,8 @@ dependencies {
 
     implementation(libs.voyager.navigator)
     implementation(libs.voyager.transitions)
-    implementation(libs.voyager.koin)
     implementation(libs.voyager.tab.navigator)
+    implementation(libs.voyager.screenmodel)
 
     implementation(libs.kmp.libs.logger)
     implementation(libs.kmp.libs.prefs)
@@ -131,7 +131,6 @@ dependencies {
     implementation(libs.koin.core)
     implementation(libs.koin.androidx.compose)
     implementation(libs.koin.compose)
-//    implementation(libs.koin.compose.viewmodel)
     implementation(libs.ktorfit)
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.client.content.negotiation)
