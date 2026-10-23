@@ -2,8 +2,6 @@ package github.naixx.network
 
 import com.github.naixx.logger.LL
 import github.naixx.network.internal.*
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.*
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.websocket.WebSockets
@@ -15,11 +13,9 @@ import io.ktor.serialization.kotlinx.json.json
 import io.ktor.util.appendIfNameAbsent
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.modules.*
-import okhttp3.logging.HttpLoggingInterceptor
 import org.koin.core.module.dsl.singleOf
 import org.koin.core.qualifier.qualifier
 import org.koin.dsl.module
-import sun.nio.ch.Net
 
 enum class Qualifiers {
     DYNAMIC,
@@ -64,10 +60,7 @@ val networkModule = module {
     singleOf(::WebSocketClient)
     single {
         val auth = get<StorageProvider>()
-        HttpClient(OkHttp) {
-            engine {
-                addInterceptor(HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.BODY))
-            }
+        platformHttpClient {
             //install(HttpCache)
             val json: Json = get()
             install(ContentNegotiation) {
