@@ -8,6 +8,7 @@ plugins {
     alias(libs.plugins.kotlin.compose) apply false
     alias(libs.plugins.jetbrains.kotlin.jvm) apply false
     alias(libs.plugins.kotlinMultiplatform) apply false
+    alias(libs.plugins.jetbrainsCompose) apply false
 }
 
 val secretsFile = rootProject.file("secrets.properties")
@@ -21,6 +22,20 @@ if (secretsFile.exists()) {
 } else {
     logger.warn("No secrets.properties found. Create this file in project root to store credentials.")
     logger.warn("Example content: email=your_email@example.com\\npassword=your_password")
+}
+
+// The Node.js / Yarn downloads for :web come from the repositories in settings.gradle.kts (FAIL_ON_PROJECT_REPOS);
+// a null base URL stops the Kotlin plugin from registering its own.
+plugins.withType<org.jetbrains.kotlin.gradle.targets.wasm.nodejs.WasmNodeJsRootPlugin> {
+    the<org.jetbrains.kotlin.gradle.targets.wasm.nodejs.WasmNodeJsEnvSpec>().downloadBaseUrl.set(null as String?)
+}
+plugins.withType<org.jetbrains.kotlin.gradle.targets.wasm.yarn.WasmYarnPlugin> {
+    the<org.jetbrains.kotlin.gradle.targets.wasm.yarn.WasmYarnRootEnvSpec>().downloadBaseUrl.set(null as String?)
+}
+allprojects {
+    plugins.withType<org.jetbrains.kotlin.gradle.targets.wasm.binaryen.BinaryenPlugin> {
+        the<org.jetbrains.kotlin.gradle.targets.wasm.binaryen.BinaryenEnvSpec>().downloadBaseUrl.set(null as String?)
+    }
 }
 
 allprojects {
