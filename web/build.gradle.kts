@@ -63,3 +63,34 @@ val wasmJsGzipDistribution by tasks.registering {
             }
     }
 }
+
+/**
+ * Copies the bundle into the firmware tree (`frontend/app/`, served at /app by `system/app.js`), replacing what is
+ * there. Only the `.gz` of a file that has one goes in — the firmware middleware serves it to every browser, and the
+ * repo grows by ≈4 MB per release instead of ≈15 — plus the small plain files; source maps stay out.
+ * `-PfirmwareDir=<path>` overrides the default sibling checkout.
+ */
+val syncToFirmware by tasks.registering {
+    group = "distribution"
+    description = "Copies the bundle (.gz only) into <firmwareDir>/frontend/app."
+    dependsOn(wasmJsGzipDistribution)
+    val dist = layout.buildDirectory.dir("dist/wasmJs/productionExecutable")
+    val firmwareDir = (project.findProperty("firmwareDir") as String?) ?: "../VIEW"
+    val target = rootProject.layout.projectDirectory.dir(firmwareDir).dir("frontend/app")
+    doLast {
+        val root = dist.get().asFile
+        val out = target.asFile
+        check(out.parentFile.isDirectory) { "No firmware checkout at ${out.parentFile.parentFile}; pass -PfirmwareDir" }
+        out.deleteRecursively()
+        root.walkTopDown()
+            .filter { it.isFile && !it.name.endsWith(".map") }
+            .filter { it.name.endsWith(".gz") || !File(it.path + ".gz").exists() }
+            .forEach { file ->
+                val dest = File(out, file.relativeTo(root).path)
+                dest.parentFile.mkdirs()
+                file.copyTo(dest)
+                dest.setLastModified(file.lastModified())
+            }
+        println("Synced to $out: " + out.walkTopDown().filter { it.isFile }.map { it.name }.sorted().joinToString())
+    }
+}
