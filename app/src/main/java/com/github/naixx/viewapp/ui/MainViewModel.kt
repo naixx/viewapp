@@ -84,7 +84,7 @@ class MainViewModel : ViewModel(), KoinComponent {
             EventBus.error(message.message)
         }
         if (message is IntervalometerStatus) {
-            deviceClock.onStatus(message.status.captureStartTime, System.currentTimeMillis())
+            deviceClock.onStatus(message.status.captureStartTime)
         }
 
         val flow = messageFlows.getOrPut(message::class) {
