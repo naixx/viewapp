@@ -8,6 +8,7 @@ import kotlinx.serialization.modules.SerializersModule
 import kotlinx.serialization.modules.polymorphic
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -25,6 +26,14 @@ class MessagesTest {
         ignoreUnknownKeys = true
         explicitNulls = false
         coerceInputValues = true
+    }
+
+    @Test
+    fun testTypeOnlyFramesDecode() {
+        // Frames that carry nothing but their type, plus the fallback for a type this app doesn't model.
+        assertIs<NoDevice>(polyJson.decodeFromString<BaseMessage>("""{"type":"nodevice"}"""))
+        assertIs<Pong>(polyJson.decodeFromString<BaseMessage>("""{"type":"pong"}"""))
+        assertIs<UnknownMessage>(polyJson.decodeFromString<BaseMessage>("""{"type":"anystringtype"}"""))
     }
 
     @Test

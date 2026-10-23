@@ -54,6 +54,8 @@ class ExampleRobolectricTest : KoinTest {
 
     @Test
     fun findFirstAvailableServer() = runTest {
+        // Scans the real Wi-Fi subnet: a live test, skipped unless -Pargs.live=true (see CLAUDE.md, Build & test).
+        Assume.assumeTrue("live test: run with -Pargs.live=true and a VIEW on the network", System.getProperty("live") == "true")
         val appContext = ApplicationProvider.getApplicationContext<Application>()
         val result: AddressResponse?
         val client = get<HttpClient>()

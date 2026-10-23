@@ -7,7 +7,6 @@ import io.ktor.websocket.*
 import io.mockk.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import org.junit.*
 import org.koin.core.context.*
@@ -26,10 +25,10 @@ val testModule = module {
     }
 }
 
-//val URL = "https://app.view.tl/"
-val URL = "http://192.168.31.21/"
-
-//val URL = "http://10.0.0.1/"
+/**
+ * Live tests against a real VIEW ([WIFI_URL] / [ACCESS_POINT_URL]) and the remote relay ([REMOTE_URL]). Skipped
+ * unless the build is run with `-Pargs.live=true` (or `live=true` in secrets.properties); the device must be on.
+ */
 class KtorTest : KoinTest {
 
     lateinit var api: ViewApi
@@ -37,6 +36,7 @@ class KtorTest : KoinTest {
 
     @Before
     fun setup() {
+        Assume.assumeTrue("live tests: run with -Pargs.live=true and a VIEW on the network", System.getProperty("live") == "true")
         startKoin {
             modules(listOf(networkModule, testModule))
         }
@@ -49,8 +49,11 @@ class KtorTest : KoinTest {
         stopKoin()
     }
 
+    // Not runTest: its virtual clock fires Ktor's HttpTimeout at once, before any real response can arrive.
+    private fun runLive(block: suspend CoroutineScope.() -> Unit) = runBlocking(Dispatchers.IO) { block() }
+
     @Test
-    fun `test login`() = runTest {
+    fun `test login`() = runLive {
         //secrets.properties
         val email = System.getProperty("email")
         val password = System.getProperty("password")
@@ -61,7 +64,7 @@ class KtorTest : KoinTest {
     }
 
     @Test
-    fun `get socket url`() = runTest {
+    fun `get socket url`() = runLive {
         val r: AddressResponse
 
         println(measureTime {
@@ -71,8 +74,8 @@ class KtorTest : KoinTest {
     }
 
     @Test
-    fun `validate that clip info can be deserialized`() = runTest {
-        val api = get<ViewApi>(parameters = { parametersOf(URL) })
+    fun `validate that clip info can be deserialized`() = runLive {
+        val api = get<ViewApi>(parameters = { parametersOf(WIFI_URL) })
 
         for (i in 101..329) {
             try {
@@ -84,26 +87,24 @@ class KtorTest : KoinTest {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun `find first available server`() = runTest {
+    fun `find first available server`() = runLive {
         val base = "http://192.168.31."
         val requestTimeout = 500L  // 1.5x average response time
         val result: Address?
         val dur = measureTime {
-            result = withContext(Dispatchers.IO) {
-                withTimeoutOrNull(30000) {
-                    (1..254).asFlow()
-                        .flatMapMerge(concurrency = 50) { i ->
-                            flow {
-                                runCatching {
-                                    val response = withTimeoutOrNull(requestTimeout) {
-                                        api.socketUrl("$base$i/socket/address")
-                                    } as? AddressResponse.Address?
-                                    emit(response?.takeIf { it.address.isNotEmpty() })
-                                }
+            result = withTimeoutOrNull(30000) {
+                (1..254).asFlow()
+                    .flatMapMerge(concurrency = 50) { i ->
+                        flow {
+                            runCatching {
+                                val response = withTimeoutOrNull(requestTimeout) {
+                                    api.socketUrl("$base$i/socket/address")
+                                } as? AddressResponse.Address?
+                                emit(response?.takeIf { it.address.isNotEmpty() })
                             }
                         }
-                        .firstOrNull { it != null }
-                }
+                    }
+                    .firstOrNull { it != null }
             }
         }
         println(dur)
@@ -112,47 +113,32 @@ class KtorTest : KoinTest {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun `find first available server with api`() = runTest {
+    fun `find first available server with api`() = runLive {
         val base = "http://192.168.31."
         val result: AddressResponse?
         val client = get<HttpClient>()
         val dur = measureTime {
-            result = withContext(Dispatchers.IO) {
-                withTimeoutOrNull(60000) {
-                    val urls = (1..254).map { "$base$it/" }.toMutableList()
-                    urls.add(128, REMOTE_URL)
-                    client.scanHosts(urls)
-                }
+            result = withTimeoutOrNull(60000) {
+                val urls = (1..254).map { "$base$it/" }.toMutableList()
+                urls.add(128, REMOTE_URL)
+                client.scanHosts(urls)
             }
         }
         println(dur)
         assertNotNull(result, "No responsive server found in network")
     }
 
-    inline fun <reified T> typeTest(type: String): BaseMessage {
-        val message = json.decodeFromString<BaseMessage>("{\"type\":\"$type\"}")
-        println(message)
-        assertIs<T>(message)
-        return message
-    }
-
-    @Test
-    fun `json decode`() {
-        typeTest<NoDevice>("nodevice")
-        typeTest<Pong>("pong")
-        typeTest<UnknownMessage>("anystringtype")
-    }
-
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun `connect ws`() = runTest {
+    fun `connect ws`() = runLive {
         val g = get<StorageProvider>()
         val webSocketClient: WebSocketClient = get()
 
         val messageReceived = CompletableDeferred<BaseMessage>()
 
         val webSocketJob = launch(Dispatchers.Default.limitedParallelism(1)) {
-            webSocketClient.startWebSocket(emptyList(), listOf(ACCESS_POINT_URL + "socket/address"), { ses, state ->
+            // Base URLs: scanHosts' probe appends socket/address itself. The unit is on the LAN or its own hotspot.
+            webSocketClient.startWebSocket(listOf(WIFI_URL, ACCESS_POINT_URL), emptyList(), { ses, state ->
                 ses.sendSerialized(Session(g.session() ?: ""))
                 ses.sendSerialized(Get("camera"))
                 ses.sendSerialized(Ping())
@@ -192,4 +178,3 @@ private suspend fun WebSocketSession.ping(salt: String) {
     val buffer = binaryFrame.data
     assertEquals(data.contentToString(), buffer.contentToString())
 }
-
