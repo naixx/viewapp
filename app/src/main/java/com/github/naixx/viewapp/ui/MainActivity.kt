@@ -20,13 +20,12 @@ import coil3.network.ktor3.KtorNetworkFetcherFactory
 import coil3.request.crossfade
 import coil3.util.DebugLogger
 import com.github.naixx.logger.LL
-import com.github.naixx.viewapp.WebSocketService
-import com.github.naixx.viewapp.WebSocketService.Companion.ACTION_STOP_SERVICE
 import com.github.naixx.viewapp.ui.components.LocalSuperNavigator
 import com.github.naixx.viewapp.ui.theme.ViewAppTheme
 import com.github.naixx.viewapp.utils.AppForeground
 import com.github.naixx.viewapp.utils.ClipMapper
 import com.github.naixx.viewapp.utils.ToastMessageHandler
+import github.naixx.core.DeviceSession
 import github.naixx.network.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -36,8 +35,6 @@ import org.koin.core.parameter.parametersOf
 
 class MainActivity : ComponentActivity() {
 
-    val flow = MutableStateFlow(emptyList<String>())
-    val out = MutableSharedFlow<String>(1)
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted: Boolean ->
@@ -48,7 +45,13 @@ class MainActivity : ComponentActivity() {
         }
     }
     private val storageProvider: StorageProvider by inject()
+    private val session: DeviceSession by inject()
     private val viewModel: MainViewModel by viewModel()
+
+    /** Whether a connection is wanted (the Status tab's Connect / Disconnect button). */
+    val isBound: StateFlow<Boolean> by lazy {
+        session.state.map { it !is ConnectionState.Disconnected }.stateIn(lifecycleScope, SharingStarted.Eagerly, false)
+    }
 
     @OptIn(ExperimentalVoyagerApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -56,10 +59,7 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             requestNotificationPermission()
         }
-        val intent = Intent(this, WebSocketService::class.java)
-        startForegroundService(intent)
-        bind()
-        LL.e(viewModel)
+        session.connect()
         setContent {
 
             setSingletonImageLoaderFactory { context ->
@@ -118,19 +118,9 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    fun startService() {
-        val intent = Intent(this, WebSocketService::class.java)
-        startService(intent)
-        bind()
-    }
+    fun startService() = session.connect()
 
-    fun stopService() {
-        val stopIntent = Intent(this, WebSocketService::class.java).apply {
-            action = ACTION_STOP_SERVICE
-        }
-        startService(stopIntent)
-        unbindService(serviceConnection).also { isBound.value = false }
-    }
+    fun stopService() = session.disconnect()
 
     private fun requestNotificationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -151,32 +141,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    var isBound = MutableStateFlow(false)
-
-    private val serviceConnection = object : ServiceConnection {
-        override fun onServiceConnected(name: ComponentName, binder: IBinder) {
-            LL.e(name)
-            val service = (binder as WebSocketService.LocalBinder).getService()
-            isBound.value = true
-            service.messages.onEach {
-                viewModel.onMessage(it)
-            }.launchIn(lifecycleScope)
-            service.connectionState.onEach {
-                LL.e(it)
-                viewModel.connectionState.value = it
-                if (it is ConnectionState.Disconnected && isBound.value)
-                    unbindService(this).also { isBound.value = false }
-            }.launchIn(lifecycleScope)
-            viewModel.outgoing.onEach {
-                service.send(it)
-            }.launchIn(lifecycleScope)
-        }
-
-        override fun onServiceDisconnected(name: ComponentName) {
-            LL.e(name)
-        }
-    }
-
     override fun onStart() {
         super.onStart()
         AppForeground.isForeground = true
@@ -185,14 +149,6 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         super.onStop()
         AppForeground.isForeground = false
-    }
-
-    private fun bind() {
-        bindService(
-            Intent(this, WebSocketService::class.java),
-            serviceConnection,
-            BIND_AUTO_CREATE
-        )
     }
 }
 

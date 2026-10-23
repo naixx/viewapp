@@ -6,23 +6,30 @@ import android.app.*
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.ConnectivityManager
-import android.os.Binder
 import android.os.Build
+import android.os.IBinder
 import android.util.Base64
 import androidx.core.app.*
 import com.github.naixx.logger.LL
-import com.github.naixx.viewapp.network.generateLocalServer
 import com.github.naixx.viewapp.network.holdViewAp
 import com.github.naixx.viewapp.ui.MainActivity
 import com.github.naixx.viewapp.utils.AppForeground
 import com.github.naixx.viewapp.utils.Prefs
+import github.naixx.core.DeviceSession
+import github.naixx.core.DeviceState
 import github.naixx.network.*
-import io.ktor.client.plugins.websocket.*
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import org.koin.android.ext.android.inject
 import java.io.File
 
+/**
+ * The foreground anchor of the connection: it keeps the process alive while [AndroidDeviceSession] is connected
+ * and does the Android-only work around it — the ongoing notification, holding the VIEW's hotspot, caching live
+ * frames and raising a heads-up notification for capture errors while the app is in the background. The
+ * connection itself lives in the session; this service starts and stops with it.
+ */
 class WebSocketService : Service() {
 
     companion object {
@@ -30,28 +37,55 @@ class WebSocketService : Service() {
         const val ACTION_STOP_SERVICE = "com.github.naixx.viewapp.STOP_SERVICE"
     }
 
-    private val webSocketClient: WebSocketClient by inject()
+    private val session: DeviceSession by inject()
 
-    // Safety net: socket aborts during a network switch can surface as uncaught exceptions on
-    // engine/teardown coroutines. Without a handler they reach the thread's default handler and
-    // crash the app; here we just log and let the reconnect loop recover.
-    private val connectionExceptionHandler = CoroutineExceptionHandler { _, e -> LL.e(e) }
-    private var serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob() + connectionExceptionHandler)
-    private var connectionJob: Job? = null
+    // Created here so the typed state (and with it the handshake after every connect) exists whenever the
+    // connection does, even if the system restarted the service without the UI.
+    private val deviceState: DeviceState by inject()
+
+    private val exceptionHandler = CoroutineExceptionHandler { _, e -> LL.e(e) }
+    private lateinit var serviceScope: CoroutineScope
     private var apJob: Job? = null
-    val messages = MutableSharedFlow<BaseMessage>(1)
-    private val storageProvider: StorageProvider by inject()
-    val connectionState = webSocketClient.connectionState
     private val notificationManager by lazy { NotificationManagerCompat.from(this) }
+
     override fun onCreate() {
         super.onCreate()
         LL.e("onCreate")
+        serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob() + exceptionHandler)
+        deviceState // instantiate
+        serviceScope.launch {
+            if (Prefs.apMode) setAccessPointMode(true) // the device was last reached on its hotspot
+            session.state.collect {
+                when (it) {
+                    is ConnectionState.LoginRequired -> {
+                        // The loop stops here; the Activity shows the login dialog and reconnects.
+                        LL.e("login req")
+                        stopForeground(STOP_FOREGROUND_REMOVE)
+                        stopSelf()
+                    }
+
+                    is ConnectionState.Connecting -> sendNotification("Connecting to VIEW", R.drawable.ic_popup_sync)
+                    is ConnectionState.Connected -> {
+                        sendNotification("Connected to VIEW", R.drawable.ic_menu_gallery)
+                        setAccessPointMode(it.address.fromUrl == ACCESS_POINT_URL)
+                    }
+
+                    else -> Unit
+                }
+            }
+        }
+        session.messages.onEach(::processMessage).launchIn(serviceScope)
     }
 
-    private fun startForegroundService() {
-        val notification = createNotification("Not connected", R.drawable.ic_menu_gallery)
-
-        startForeground(1, notification)
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_STOP_SERVICE) {
+            LL.e("Stopping from the notification action")
+            session.disconnect() // stops this service too
+            return START_NOT_STICKY
+        }
+        startForeground(1, createNotification("Not connected", R.drawable.ic_menu_gallery))
+        session.connect() // idempotent; also covers a restart by the system
+        return START_STICKY
     }
 
     private fun createNotification(text: String, iconRes: Int = R.drawable.ic_popup_sync): Notification {
@@ -62,7 +96,7 @@ class WebSocketService : Service() {
             this, 0, stopIntent, PendingIntent.FLAG_IMMUTABLE
         )
 
-        val notification = NotificationCompat.Builder(this, "WebSocketChannel")
+        return NotificationCompat.Builder(this, "WebSocketChannel")
             .setContentTitle("WebSocket Service")
             .setContentText(text)
             .setSmallIcon(iconRes)
@@ -72,49 +106,6 @@ class WebSocketService : Service() {
             .setSilent(true)
             .addAction(R.drawable.ic_menu_close_clear_cancel, "Stop", stopPendingIntent)
             .build()
-        return notification
-    }
-
-    private fun startWebSocketConnection() {
-        // Idempotent: the service is started from multiple places (onCreate's
-        // startForegroundService, the Connect button, apiLogin). Without this guard each call
-        // would launch another infinite reconnect loop, so after one connected the others would
-        // keep scanning and fight over the single WebSocket session.
-        if (connectionJob?.isActive == true) {
-            LL.i("connection loop already running; ignoring start")
-            return
-        }
-        if (!serviceScope.isActive)
-            serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob() + connectionExceptionHandler)
-        val priorityUrls = Prefs.lastConnectedIp.toList()
-        val scanUrls = generateLocalServer(this) + WIFI_URL
-        LL.e((priorityUrls).joinToString(", "))
-        LL.e((priorityUrls + scanUrls).joinToString("\n"))
-        connectionJob = serviceScope.launch {
-            webSocketClient.startWebSocket(priorityUrls, scanUrls, ::onSessionCreated) {
-                LL.i(it)
-                launch {
-                    messages.emit(it)
-                }
-                processMessage(it)
-            }
-        }
-        serviceScope.launch {
-            if (Prefs.apMode) setAccessPointMode(true) // the device was last reached on its hotspot
-            webSocketClient.connectionState.collect {
-                if (it is ConnectionState.LoginRequired) {
-                    //delay(5000)
-                    LL.e("login req")
-                    stopForeground(STOP_FOREGROUND_REMOVE)
-                    stopSelf()
-                } else if (it is ConnectionState.Connecting) {
-                    sendNotification("Connecting to VIEW", R.drawable.ic_popup_sync)
-                } else if (it is ConnectionState.Connected) {
-                    sendNotification("Connected to VIEW", R.drawable.ic_menu_gallery)
-                    setAccessPointMode(it.address.fromUrl == ACCESS_POINT_URL)
-                }
-            }
-        }
     }
 
     /**
@@ -133,30 +124,9 @@ class WebSocketService : Service() {
     }
 
     private fun sendNotification(text: String, icon: Int) {
-        if (ActivityCompat.checkSelfPermission(
-                this@WebSocketService,
-                Manifest.permission.POST_NOTIFICATIONS
-            ) != PackageManager.PERMISSION_GRANTED
-        )
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
             return
         notificationManager.notify(1, createNotification(text, icon))
-    }
-
-    private suspend fun onSessionCreated(
-        session: DefaultClientWebSocketSession,
-        state: ConnectionState.Connected
-    ) {
-        session.sendSerialized(Session(storageProvider.session() ?: ""))
-        session.sendSerialized(Get("camera"))
-        session.sendSerialized(Get("settings"))
-        session.sendSerialized(Get("battery"))
-        session.sendSerialized(Get("program"))
-    }
-
-    fun send(message: OutMessage) {
-        serviceScope.launch {
-            webSocketClient.send(message)
-        }
     }
 
     private fun processMessage(message: BaseMessage) {
@@ -196,6 +166,7 @@ class WebSocketService : Service() {
         notificationManager.notify(errorNotificationId++, notification)
     }
 
+    // Moves to a FrameStore in :core with the next step; until then the frame cache layout lives here and in TimelapseViewModel.
     private fun saveThumbnail(thumbnail: Thumbnail) {
         serviceScope.launch(Dispatchers.IO) {
             try {
@@ -213,43 +184,13 @@ class WebSocketService : Service() {
         }
     }
 
-    private fun handleMessage(message: String) {
-        LL.e(message)
-        //    messages.tryEmit(message)
-    }
-
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_STOP_SERVICE) {
-            LL.e("Stopping service from notification action")
-            connectionState.value = ConnectionState.Disconnected
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
-            serviceScope.cancel()
-            return START_NOT_STICKY
-        }
-
-        return super.onStartCommand(intent, flags, startId)
-    }
-
-    override fun onStart(intent: Intent?, startId: Int) {
-        super.onStart(intent, startId)
-        LL.e("onstart")
-        startForegroundService()
-        startWebSocketConnection()
-        // onStartCommand(intent, flags, startId)
-    }
-
     override fun onDestroy() {
         super.onDestroy()
         LL.e("onDestroy")
         serviceScope.cancel()
-        NotificationManagerCompat.from(this).cancelAll()
+        apJob = null
+        notificationManager.cancelAll()
     }
 
-    private val binder = LocalBinder()
-    override fun onBind(intent: Intent?) = binder
-    inner class LocalBinder : Binder() {
-
-        fun getService(): WebSocketService = this@WebSocketService
-    }
+    override fun onBind(intent: Intent?): IBinder? = null
 }

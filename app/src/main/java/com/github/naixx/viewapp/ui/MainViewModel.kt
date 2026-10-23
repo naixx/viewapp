@@ -5,111 +5,55 @@ import androidx.lifecycle.viewModelScope
 import com.github.naixx.logger.LL
 import com.github.naixx.viewapp.utils.EventBus
 import github.naixx.core.AppNotification
-import github.naixx.core.DeviceClock
-import github.naixx.network.BaseMessage
-import github.naixx.network.Battery
-import github.naixx.network.CaptureError
+import github.naixx.core.DeviceState
 import github.naixx.network.Clip
-import github.naixx.network.ConnectedMessage
 import github.naixx.network.ConnectionState
-import github.naixx.network.Histogram
-import github.naixx.network.IntervalometerError
-import github.naixx.network.IntervalometerStatus
 import github.naixx.network.OutMessage
-import github.naixx.network.SettingsMessage
-import github.naixx.network.Thumbnail
-import github.naixx.network.TimelapseProgram
 import github.naixx.network.ViewApi
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
-import kotlinx.coroutines.cancelChildren
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.get
 import org.koin.core.parameter.parametersOf
-import kotlin.reflect.KClass
-import kotlin.time.Clock
 
-class MainViewModel : ViewModel(), KoinComponent {
+/**
+ * The screens' view of the device: a facade over the app-scoped [DeviceState] (which outlives this Activity-scoped
+ * view model), kept so the screens keep their property names while they move to the shared :ui module.
+ */
+class MainViewModel(private val device: DeviceState) : ViewModel(), KoinComponent {
 
-    val outgoing = MutableSharedFlow<OutMessage>(1)
-
-    val connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
+    val connectionState: StateFlow<ConnectionState> get() = device.connection
     val clips = MutableStateFlow<ImmutableList<Clip>>(persistentListOf())
 
-    // Persistent (session-lived) notifications — errors stay until the user reads/clears them, since a
-    // time-lapse runs for a long time and the toast is easy to miss.
-    val notifications: StateFlow<List<AppNotification>>
-        field = MutableStateFlow<List<AppNotification>>(emptyList())
-    private var nextNotificationId = 0L
+    val notifications: StateFlow<List<AppNotification>> get() = device.notifications
 
-    private val messageFlows = mutableMapOf<KClass<out BaseMessage>, MutableStateFlow<BaseMessage?>>()
+    val connectedMessage get() = device.camera
+    val settingsMessage get() = device.settings
+    val batteryMessage get() = device.battery
+    val thumbnail get() = device.thumbnail
+    val intervalometerStatus get() = device.intervalometerStatus
+    val histogram get() = device.histogram
+    val program get() = device.program
 
-    private inline fun <reified T : BaseMessage> messageFlow(): StateFlow<T?> =
-        messageFlows.getOrPut(T::class) { MutableStateFlow(null) } as StateFlow<T?>
-
-    val connectedMessage get() = messageFlow<ConnectedMessage>()
-    val settingsMessage get() = messageFlow<SettingsMessage>()
-    val batteryMessage get() = messageFlow<Battery>()
-    val thumbnail get() = messageFlow<Thumbnail>()
-    val intervalometerStatus get() = messageFlow<IntervalometerStatus>()
-    val histogram get() = messageFlow<Histogram>()
-    val program get() = messageFlow<TimelapseProgram>()
-
-    val deviceClock = DeviceClock()
+    val deviceClock get() = device.deviceClock
 
     init {
-        connectionState.onEach {
-            if (it is ConnectionState.Disconnected) {
-                messageFlows.values.forEach { flow -> flow.value = null }
-            }
-            if (it !is ConnectionState.Connected) deviceClock.onDisconnected()
-        }.launchIn(viewModelScope)
-    }
-
-    fun onMessage(message: BaseMessage) {
-        if (message is IntervalometerError) {
-            val text = message.msg ?: "An error occurred during capture"
-            EventBus.error(text)
-            addNotification(text)
-        }
-        if (message is CaptureError) {
-            EventBus.error(message.message)
-        }
-        if (message is IntervalometerStatus) {
-            deviceClock.onStatus(message.status.captureStartTime)
-        }
-
-        val flow = messageFlows.getOrPut(message::class) {
-            MutableStateFlow(null)
-        }
-
-        flow.value = message
-    }
-
-    private fun addNotification(message: String) {
-        notifications.update { it + AppNotification(nextNotificationId++, message, Clock.System.now()) }
+        // Capture errors are toasted while a UI is there to show them; the notification list keeps them anyway.
+        device.errors.onEach { EventBus.error(it) }.launchIn(viewModelScope)
     }
 
     /** Mark every notification as read (called when the user opens the notification center). */
-    fun markNotificationsRead() {
-        notifications.update { it.map { if (it.read) it else it.copy(read = true) } }
-    }
+    fun markNotificationsRead() = device.markNotificationsRead()
 
-    fun clearNotifications() {
-        notifications.value = emptyList()
-    }
+    fun clearNotifications() = device.clearNotifications()
 
-    fun send(message: OutMessage) {
-        outgoing.tryEmit(message)
-    }
+    fun send(message: OutMessage) = device.send(message)
 
     /**
      * Request the list of available clips from the server
@@ -123,10 +67,5 @@ class MainViewModel : ViewModel(), KoinComponent {
                 LL.e(e)
             }
         }
-    }
-
-    override fun onCleared() {
-        super.onCleared()
-        viewModelScope.coroutineContext.cancelChildren()
     }
 }
