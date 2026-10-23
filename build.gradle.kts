@@ -39,10 +39,15 @@ allprojects {
 }
 
 allprojects {
-    tasks.withType<KotlinCompile>().configureEach {
+    // Language flags for every compilation (JVM, Android, Wasm): the shared modules use explicit backing fields too.
+    tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask<*>>().configureEach {
         compilerOptions {
             freeCompilerArgs.add("-Xcollection-literals")
             freeCompilerArgs.add("-XXLanguage:+ExplicitBackingFields")
+        }
+    }
+    tasks.withType<KotlinCompile>().configureEach {
+        compilerOptions {
             jvmTarget.set(JvmTarget.JVM_17)
         }
     }

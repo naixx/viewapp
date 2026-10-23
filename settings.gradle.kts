@@ -43,5 +43,6 @@ dependencyResolutionManagement {
 rootProject.name = "ViewApp"
 include(":app")
 include(":network")
+include(":core")
 include(":db")
 include(":web")

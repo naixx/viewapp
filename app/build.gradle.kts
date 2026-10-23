@@ -93,6 +93,7 @@ androidComponents {
 
 dependencies {
     implementation(project(":network"))
+    implementation(project(":core"))
     implementation(project(":db"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

@@ -3,8 +3,9 @@ package com.github.naixx.viewapp.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.naixx.logger.LL
-import com.github.naixx.viewapp.utils.DeviceClock
 import com.github.naixx.viewapp.utils.EventBus
+import github.naixx.core.AppNotification
+import github.naixx.core.DeviceClock
 import github.naixx.network.BaseMessage
 import github.naixx.network.Battery
 import github.naixx.network.CaptureError
@@ -35,15 +36,6 @@ import org.koin.core.component.get
 import org.koin.core.parameter.parametersOf
 import kotlin.reflect.KClass
 import kotlin.time.Clock
-import kotlin.time.Instant
-
-/** A session-scoped notification (e.g. a capture error) shown in the in-app notification center. */
-data class AppNotification(
-    val id: Long,
-    val message: String,
-    val timeMillis: Instant,
-    val read: Boolean = false,
-)
 
 class MainViewModel : ViewModel(), KoinComponent {
 

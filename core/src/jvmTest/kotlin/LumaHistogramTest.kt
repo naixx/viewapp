@@ -1,7 +1,6 @@
-package com.github.naixx.viewapp.utils
-
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import github.naixx.core.lumaHistogram
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 class LumaHistogramTest {
 
