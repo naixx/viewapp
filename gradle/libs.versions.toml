@@ -28,7 +28,7 @@ junit = "4.13.2"
 koalaplotCore = "0.6.4"
 
 kotlinxCollectionsImmutable = "0.3.8"
-kotlinxDatetime = "0.8.0" #we use specially compiled version
+kotlinxDatetime = "0.8.0"
 kottie = "1.9.6"
 ktorfit = "2.7.5"
 
@@ -54,6 +54,7 @@ composeBom = "2025.02.00"
 koin = "4.2.2"
 
 kotlinxCoroutinesAndroid = "1.9.0"
+kotlinxSerialization = "1.11.0"
 ktorVersion = "3.0.3"
 
 [libraries]
@@ -108,6 +109,7 @@ androidx-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit
 androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
 
 kotlinx-collections-immutable = { module = "org.jetbrains.kotlinx:kotlinx-collections-immutable", version.ref = "kotlinxCollectionsImmutable" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
 kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinxDatetime" }
 kottie = { module = "io.github.ismai117:kottie", version.ref = "kottie" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
@@ -154,6 +156,7 @@ ktor-client-logging = { module = "io.ktor:ktor-client-logging", version.ref = "k
 ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktorVersion" }
 ktor-client-websockets = { module = "io.ktor:ktor-client-websockets", version.ref = "ktorVersion" }
 ktor-client-darwin = { module = "io.ktor:ktor-client-darwin", version.ref = "ktorVersion" }
+ktor-client-js = { module = "io.ktor:ktor-client-js", version.ref = "ktorVersion" }
 ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "ktorVersion" }
 ktor-serialization-kotlinx-json = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "ktorVersion" }
 ktorfit = { module = "de.jensklingenberg.ktorfit:ktorfit-lib", version.ref = "ktorfit" }

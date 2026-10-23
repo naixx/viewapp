@@ -1,6 +1,10 @@
 package github.naixx.network
 
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.offsetAt
 import kotlinx.serialization.json.*
+import kotlin.time.Clock
+import kotlin.time.Instant
 
 /**
  * A lossless, editable view over the device's timelapse `program` JsonObject.
@@ -83,5 +87,5 @@ class ProgramDraft(val json: JsonObject) {
  * (so the device can do sun/eclipse timing without trusting its own clock). Mirrors the original
  * app's `moment().valueOf() + moment().utcOffset()*60*1000`.
  */
-fun runDateMillis(now: Long = System.currentTimeMillis()): Long =
-    now + java.util.TimeZone.getDefault().getOffset(now)
+fun runDateMillis(now: Instant = Clock.System.now()): Long =
+    now.toEpochMilliseconds() + TimeZone.currentSystemDefault().offsetAt(now).totalSeconds * 1000L

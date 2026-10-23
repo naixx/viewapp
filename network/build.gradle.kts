@@ -1,3 +1,4 @@
+import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -9,6 +10,11 @@ plugins {
 kotlin {
     // jvm is what :app and :db consume (Android resolves the JVM variant) and where the fast protocol tests run.
     jvm()
+    // wasmJs is for the browser client served by the VIEW (docs/2026-10-24-web-client-plan.md).
+    @OptIn(ExperimentalWasmDsl::class)
+    wasmJs {
+        browser()
+    }
 
     compilerOptions {
         freeCompilerArgs.addAll(
@@ -29,16 +35,23 @@ kotlin {
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.client.logging)
             api(libs.ktor.serialization.kotlinx.json)
-//            api(libs.kotlinx.datetime)
+            // Pinned: Ktor alone brings 1.7.3 (no @JsonIgnoreUnknownKeys); the JVM graph already resolves to this.
+            api(libs.kotlinx.serialization.json)
+            api(libs.kotlinx.datetime)
             api(libs.kotlinx.collections.immutable)
             implementation(libs.ktorfit.converters.flow)
 
             // Room annotations on the shared Clip / TimelapseClipInfo entities (see CLAUDE.md, module structure).
-            compileOnly(libs.room.common)
+            // implementation rather than compileOnly: Wasm links everything it compiles against, and the JVM
+            // consumers have room-common through Room itself anyway.
+            implementation(libs.room.common)
         }
         jvmMain.dependencies {
             implementation(libs.ktor.client.okhttp)
             implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+        }
+        wasmJsMain.dependencies {
+            implementation(libs.ktor.client.js)
         }
         jvmTest.dependencies {
             implementation(libs.jetbrains.kotlin.test.junit)

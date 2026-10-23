@@ -2,6 +2,7 @@ package github.naixx.network
 
 import de.jensklingenberg.ktorfit.http.*
 import github.naixx.network.internal.AddressResponseSerializer
+import github.naixx.network.internal.ioDispatcher
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
@@ -105,7 +106,7 @@ suspend fun HttpClient.scanHosts(
     candidates: List<String>,
     concurrency: Int = 30,
     reprobeEvery: Int = 70,
-): AddressResponse? = withContext(Dispatchers.IO) {
+): AddressResponse? = withContext(ioDispatcher) {
     val known = priority.distinct()
 
     val knownFlow = known.asFlow()
