@@ -38,7 +38,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,17 +57,20 @@ import com.github.naixx.viewapp.ui.components.VButton
 import com.github.naixx.viewapp.ui.components.sampleClipInfo
 import com.github.naixx.viewapp.utils.EventBus
 import com.github.naixx.viewapp.utils.activityViewModel
+import com.github.naixx.viewapp.utils.toFixed
 import dev.zacsweers.metrox.viewmodel.assistedMetroViewModel
 import github.naixx.core.ExportResult
 import github.naixx.network.Clip
 import github.naixx.network.TimelapseClipInfo
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.drop
-import kotlinx.coroutines.launch
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
+import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.format.MonthNames
+import kotlinx.datetime.format.char
+import kotlinx.datetime.format
+import kotlinx.datetime.toLocalDateTime
+import kotlin.time.Instant
 
 class ClipInfoScreen(val clip: Clip) : Screen {
 
@@ -104,17 +106,15 @@ class ClipInfoScreen(val clip: Clip) : Screen {
             }
         }
 
-        val scope = rememberCoroutineScope()
         var cacheSize by remember { mutableStateOf<String?>(null) }
 
         LaunchedEffect(Unit) {
-            scope.launch(Dispatchers.IO) {
-                timelapseViewModel.checkExistingFrames(clip.frames)
-                val existingFrames = timelapseViewModel.downloadedFrames.value
-                if (existingFrames.isNotEmpty()) {
-                    val size = timelapseViewModel.getCacheSize()
-                    cacheSize = formatFileSize(size)
-                }
+            // The store does its file work on its own dispatcher; nothing to switch to here.
+            timelapseViewModel.checkExistingFrames(clip.frames)
+            val existingFrames = timelapseViewModel.downloadedFrames.value
+            if (existingFrames.isNotEmpty()) {
+                val size = timelapseViewModel.getCacheSize()
+                cacheSize = formatFileSize(size)
             }
         }
 
@@ -464,15 +464,17 @@ private fun InfoView(info: TimelapseClipInfo) {
     }
 }
 
-private fun formatDate(dateString: String): String {
-    return try {
-        val instant = Instant.parse(dateString)
-        val localDateTime = instant.atZone(ZoneId.systemDefault()).toLocalDateTime()
-        val formatter = DateTimeFormatter.ofPattern("MMM dd, yyyy, HH:mm:ss a")
-        localDateTime.format(formatter)
-    } catch (e: Exception) {
-        dateString
-    }
+/** The clip's date as the Android app always showed it: `MMM dd, yyyy, HH:mm:ss a` (English month names everywhere now). */
+private val clipDateFormat = LocalDateTime.Format {
+    monthName(MonthNames.ENGLISH_ABBREVIATED); char(' '); day(); chars(", "); year(); chars(", ")
+    hour(); char(':'); minute(); char(':'); second(); char(' '); amPmMarker("AM", "PM")
+}
+
+/** The device's ISO date in the local zone; the raw string when it does not parse (or the zone is unknown, as in a browser without tz data). */
+private fun formatDate(dateString: String): String = try {
+    Instant.parse(dateString).toLocalDateTime(TimeZone.currentSystemDefault()).format(clipDateFormat)
+} catch (e: Exception) {
+    dateString
 }
 
 private fun calculateDuration(frames: Int, fps: Int): String {
@@ -486,10 +488,10 @@ private fun calculateDuration(frames: Int, fps: Int): String {
 private fun formatFileSize(size: Long): String {
     val kb = size / 1024.0
     if (kb < 1024) {
-        return String.format("%.2f KB", kb)
+        return "${kb.toFixed(2)} KB"
     }
     val mb = kb / 1024.0
-    return String.format("%.2f MB", mb)
+    return "${mb.toFixed(2)} MB"
 }
 
 private fun formatTime(seconds: Int): String {
@@ -498,11 +500,13 @@ private fun formatTime(seconds: Int): String {
     val secondsRemaining = seconds % 60
 
     return if (hours > 0) {
-        String.format("%02d:%02d:%02d", hours, minutes, secondsRemaining)
+        "${two(hours)}:${two(minutes)}:${two(secondsRemaining)}"
     } else {
-        String.format("%02d:%02d", minutes, secondsRemaining)
+        "${two(minutes)}:${two(secondsRemaining)}"
     }
 }
+
+private fun two(n: Int) = n.toString().padStart(2, '0')
 
 @Preview
 @Composable

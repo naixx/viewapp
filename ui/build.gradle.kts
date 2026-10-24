@@ -30,6 +30,7 @@ kotlin {
         commonMain.dependencies {
             api(project(":core")) // the components render :network message types; :core brings :network as api
             api(libs.voyager.navigator) // SuperNav exposes Navigator
+            api(libs.voyager.tab.navigator) // MainScreen: the Status / Clips tabs
             api(compose.runtime)
             api(compose.foundation)
             api(compose.material3)
