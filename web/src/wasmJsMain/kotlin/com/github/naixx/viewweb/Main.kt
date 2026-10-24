@@ -1,6 +1,8 @@
 package com.github.naixx.viewweb
 
 import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.ViewModelStoreOwner
 import androidx.compose.ui.window.ComposeViewport
 import dev.zacsweers.metro.*
 import dev.zacsweers.metrox.viewmodel.ViewModelGraph
@@ -12,13 +14,14 @@ import kotlinx.browser.document
 /**
  * The browser shell's graph: `:network` and `:core` arrive through `AppScope` contributions; `WebStorage` and
  * `DirectDeviceSession` contribute themselves; the stores are in memory — the page lives as long as the tab. It extends
- * [ViewModelGraph] for `:ui`'s `AppViewModelFactory`; the screens' view models arrive with the screens (step 10).
+ * [ViewModelGraph] for `:ui`'s `AppViewModelFactory` (`metroViewModelFactory`), which the page hands to the screens.
  */
 @DependencyGraph(AppScope::class)
 interface WebGraph : ViewModelGraph {
 
     val deviceSession: DeviceSession
     val deviceState: DeviceState
+    val frameStore: FrameStore
 }
 
 @ContributesTo(AppScope::class)
@@ -38,9 +41,10 @@ object WebBindings {
 fun main() {
     Napier.base(DebugAntilog())
     val graph = createGraph<WebGraph>()
-    val device = graph.deviceState // before connect(), so the handshake is observed
+    graph.deviceState // created before connect(), so the handshake after the first connect is observed
     graph.deviceSession.connect()
+    val page = object : ViewModelStoreOwner { override val viewModelStore = ViewModelStore() }
 
     document.getElementById("loader")?.remove()
-    ComposeViewport(document.body!!) { App(device) }
+    ComposeViewport(document.body!!) { App(graph.metroViewModelFactory, graph.frameStore, page) }
 }
