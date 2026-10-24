@@ -23,6 +23,7 @@ import coil3.util.DebugLogger
 import androidx.activity.viewModels
 import com.github.naixx.logger.LL
 import com.github.naixx.viewapp.ui.components.LocalSuperNavigator
+import com.github.naixx.viewapp.ui.components.frames
 import com.github.naixx.viewapp.ui.theme.ViewAppTheme
 import com.github.naixx.viewapp.utils.AppForeground
 import com.github.naixx.viewapp.utils.ClipMapper
@@ -34,6 +35,7 @@ import dev.zacsweers.metrox.android.ActivityKey
 import dev.zacsweers.metrox.viewmodel.LocalMetroViewModelFactory
 import dev.zacsweers.metrox.viewmodel.MetroViewModelFactory
 import github.naixx.core.DeviceSession
+import github.naixx.core.FrameStore
 import github.naixx.network.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -49,6 +51,7 @@ class MainActivity(
     private val session: DeviceSession,
     private val api: ViewApi,
     private val viewModelFactory: MetroViewModelFactory,
+    private val frameStore: FrameStore, // the player's frames go through Coil (FrameFetcher)
 ) : ComponentActivity() {
 
     private val requestPermissionLauncher = registerForActivityResult(
@@ -81,6 +84,7 @@ class MainActivity(
                     .components {
                         add(KtorNetworkFetcherFactory())
                         add(ClipMapper())
+                        frames(frameStore)
                     }
                     .crossfade(100)
                     .logger(DebugLogger())

@@ -208,7 +208,7 @@ class TimelapseViewModel(
     }
 
     /**
-     * Get the file for a specific frame if it exists
+     * Get the file for a specific frame if it exists (the exporter wants java.io.Files)
      */
     fun getFrameFile(context: Context, frameIndex: Int): File? =
         File(frames.path(clip.name, frameIndex).toString()).takeIf { it.exists() }

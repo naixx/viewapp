@@ -47,7 +47,7 @@ sonner = "0.3.8"
 startupRuntime = "1.2.0"
 statelyCommon = "2.0.7"
 voyager = "1.1.0-beta02"
-coil = "3.0.0-rc01"
+coil = "3.5.0" # 3.6+ needs compileSdk 37 (platform 37.0 is installed); bump both together
 composeViewModel = "2.8.4"
 composeBom = "2025.02.00"
 

@@ -34,6 +34,7 @@ kotlin {
             api(compose.material3)
             api(compose.ui)
             api(compose.materialIconsExtended)
+            api(libs.coil.compose) // images everywhere in the shared UI; the frames reach it through FrameFetcher
             api(libs.sonner) // toasts: EventBus events carry its ToastType
             implementation(libs.kmp.libs.logger)
             implementation(libs.kotlinx.coroutines.core)

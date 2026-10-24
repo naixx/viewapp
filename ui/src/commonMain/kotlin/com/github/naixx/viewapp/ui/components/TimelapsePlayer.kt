@@ -1,6 +1,5 @@
 package com.github.naixx.viewapp.ui.components
 
-import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -30,7 +29,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.Modifier.Companion
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -38,10 +36,7 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
-import coil3.request.ImageRequest.Builder
-import coil3.request.crossfade
 import kotlinx.coroutines.delay
-import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,8 +47,8 @@ fun TimelapsePlayer(
     isPlaying: Boolean,
     isLive: Boolean,
     isDownloading: Boolean = false,
-    context: Context,
-    getFrameFile: (Int) -> File?,
+    /** Whose frames: the shell's `ImageLoader` resolves [FrameKey]s through the `FrameStore` (see FrameFetcher). */
+    clip: String,
     onPlayPause: () -> Unit,
     onSeek: (Int) -> Unit,
     onScrubStart: () -> Unit,
@@ -90,26 +85,19 @@ fun TimelapsePlayer(
     ) {
         var currentPainter by remember { mutableStateOf<Painter?>(null) }
 
-        // Render whatever frame currentFrameIndex points at as long as its file exists. Do NOT gate on
+        // Render whatever frame currentFrameIndex points at as long as it is cached. Do NOT gate on
         // `currentFrameIndex <= frames.size`: currentFrameIndex is a frame *number*, which can exceed
         // the downloaded *count* when frames aren't contiguous (e.g. live capture with gaps), and that
-        // mismatch would hide the newest live frame. The getFrameFile null-check below is the real guard.
+        // mismatch would hide the newest live frame. FrameFetcher finding no such frame is the real guard.
+        // The last loaded frame is the placeholder of the next one, so playback doesn't flicker.
         if (progress > 0f && frames.isNotEmpty() && currentFrameIndex > 0) {
-            val frameFile = getFrameFile(currentFrameIndex)
-            if (frameFile != null) {
-                AsyncImage(
-                    model = Builder(context)
-                        .data(frameFile)
-                        .crossfade(false)
-                        .build(),
-                    contentDescription = "Frame $currentFrameIndex",
-                    placeholder = currentPainter,
-                    onSuccess = { painter ->
-                        currentPainter = painter.painter
-                    },
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
+            AsyncImage(
+                model = FrameKey(clip, currentFrameIndex),
+                contentDescription = "Frame $currentFrameIndex",
+                placeholder = currentPainter,
+                onSuccess = { currentPainter = it.painter },
+                modifier = Modifier.fillMaxSize()
+            )
         }
 
         // Scrim + center button shown together; never while downloading or before any frame.
@@ -163,7 +151,7 @@ fun TimelapsePlayer(
 }
 
 @Composable
-private fun CenterPlayButton(isPlaying: Boolean, onClick: () -> Unit, modifier: Modifier = Companion) {
+private fun CenterPlayButton(isPlaying: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .size(64.dp)
