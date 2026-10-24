@@ -1,9 +1,5 @@
 package com.github.naixx.viewapp.ui
 
-import android.content.Context
-import android.net.ConnectivityManager
-import android.net.LinkProperties
-import android.net.Network
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,14 +26,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
-import com.github.naixx.viewapp.network.currentWifiSubnetLabel
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
@@ -112,8 +105,8 @@ class StatusScreen : Screen {
         val programVm = activityViewModel<ProgramViewModel>()
         val draft by programVm.draft.collectAsState()
 
-        val c = LocalContext.current as MainActivity
-        val bound by c.isBound.collectAsState()
+        val bound = conn !is ConnectionState.Disconnected // a connection is wanted: the Connect / Disconnect button
+        val subnetLabel by viewModel.subnetLabel.collectAsState()
         val notifications by viewModel.notifications.collectAsState()
 
         OnConnectedEffect(conn) {
@@ -171,7 +164,7 @@ class StatusScreen : Screen {
         // Nothing to fetch before the first frame, and until then the VIEW may not have the clip yet:
         // /clipinfo answers an empty 200 and the download failed right after every start.
         if (conn is ConnectionState.Connected && timelapseViewModel != null && clip.frames > 0)
-            LaunchedEffect(c) {
+            LaunchedEffect(Unit) {
                 timelapseViewModel.downloadFrames(conn)
             }
 
@@ -209,7 +202,8 @@ class StatusScreen : Screen {
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Box(Modifier.weight(1f)) {
-                    ServiceControls(bound, conn, { c.startService() }, { c.stopService() })
+                    // The browser has nothing to start or stop: the page is the connection.
+                    if (viewModel.controllable) ServiceControls(bound, conn, subnetLabel, { viewModel.connect() }, { viewModel.disconnect() })
                 }
                 NotificationBell(
                     notifications = notifications,
@@ -598,27 +592,9 @@ class StatusScreen : Screen {
         }
     }
 
-    /** Current Wi-Fi subnet label that recomputes whenever the active network changes. */
     @Composable
-    private fun rememberCurrentSubnetLabel(): String? {
-        val context = LocalContext.current
-        return produceState(initialValue = currentWifiSubnetLabel(context), context) {
-            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-            val callback = object : ConnectivityManager.NetworkCallback() {
-                private fun refresh() { value = currentWifiSubnetLabel(context) }
-                override fun onAvailable(network: Network) = refresh()
-                override fun onLost(network: Network) = refresh()
-                override fun onLinkPropertiesChanged(network: Network, linkProperties: LinkProperties) = refresh()
-            }
-            cm.registerDefaultNetworkCallback(callback)
-            awaitDispose { cm.unregisterNetworkCallback(callback) }
-        }.value
-    }
-
-    @Composable
-    private fun ServiceControls(bound: Boolean, conn: ConnectionState, onStart: () -> Unit, onStop: () -> Unit) {
+    private fun ServiceControls(bound: Boolean, conn: ConnectionState, subnet: String?, onStart: () -> Unit, onStop: () -> Unit) {
         if (!bound) {
-            val subnet = rememberCurrentSubnetLabel()
             VSmallButton(if (subnet != null) "Connect · $subnet" else "Connect") {
                 onStart()
             }
@@ -768,7 +744,7 @@ class StatusScreen : Screen {
                 Spacer(modifier = Modifier.height(8.dp))
                 TimeLapseStatus(true, connected, intervalStatus.status, sampleProgram, sampleProgramRaw, cameraSettings.details, send = {})
                 Spacer(modifier = Modifier.height(8.dp))
-                ServiceControls(true, ConnectionState.Connecting, {}, {})
+                ServiceControls(true, ConnectionState.Connecting, null, {}, {})
                 Spacer(modifier = Modifier.height(8.dp))
                 BatteryInfo(connected, settings, battery)
             }

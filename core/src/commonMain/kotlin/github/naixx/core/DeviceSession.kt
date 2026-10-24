@@ -23,6 +23,12 @@ interface DeviceSession {
     /** Whether the user can start and stop the connection here (the Android service: yes; the browser: no). */
     val controllable: Boolean
 
+    /**
+     * The local subnet a [connect] would scan, as a short `192.168.4.x` label for the Connect button; null when there is
+     * none (offline, or the browser: the page's origin is the device).
+     */
+    val subnetLabel: StateFlow<String?>
+
     fun connect()
 
     fun disconnect()

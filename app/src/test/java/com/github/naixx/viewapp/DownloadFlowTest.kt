@@ -54,6 +54,7 @@ class DownloadFlowTest {
         override val messages = MutableSharedFlow<BaseMessage>()
         override fun send(message: OutMessage) = Unit
         override val controllable = false
+        override val subnetLabel = MutableStateFlow<String?>(null)
         override fun connect() = Unit
         override fun disconnect() = Unit
     }

@@ -72,7 +72,7 @@ import kotlinx.serialization.json.JsonPrimitive
 // combined Status/Program screen (mirrors the original IntervalometerPage). The running state and live
 // dynamic-change controls live in StatusScreen.
 @Composable
-fun ProgramEditor(
+internal fun ProgramEditor(
     d: ProgramDraft,
     vm: ProgramViewModel,
     settings: CameraSettings?,
@@ -182,7 +182,7 @@ private fun evLimitOptions(entries: List<Pair<String, Double?>>): List<Opt<Doubl
  * time-lapse: the VIEW reads luminance and highlight protection only when it starts, so they are shown, not edited.
  */
 @Composable
-fun RampingOptionsDialog(
+internal fun RampingOptionsDialog(
     d: ProgramDraft,
     details: CameraDetails?,
     live: Boolean = false,

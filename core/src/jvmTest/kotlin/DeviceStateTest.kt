@@ -22,6 +22,7 @@ class DeviceStateTest {
         val sent = mutableListOf<OutMessage>()
         override fun send(message: OutMessage) { sent += message }
         override val controllable = false
+        override val subnetLabel = MutableStateFlow<String?>(null)
         override fun connect() = Unit
         override fun disconnect() = Unit
         fun receive(message: BaseMessage) = check(messages.tryEmit(message))

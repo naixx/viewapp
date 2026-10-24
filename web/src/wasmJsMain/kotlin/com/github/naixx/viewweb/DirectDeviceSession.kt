@@ -10,6 +10,7 @@ import kotlinx.browser.window
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -29,6 +30,8 @@ class DirectDeviceSession(private val client: WebSocketClient) : DeviceSession {
     override val messages = MutableSharedFlow<BaseMessage>(extraBufferCapacity = 256, onBufferOverflow = BufferOverflow.DROP_OLDEST)
 
     override val controllable = false
+
+    override val subnetLabel: StateFlow<String?> = MutableStateFlow(null) // no scan: the page's origin is the device
 
     override fun connect() {
         if (connectionJob?.isActive == true) return

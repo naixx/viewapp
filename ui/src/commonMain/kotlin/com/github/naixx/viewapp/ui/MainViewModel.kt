@@ -7,6 +7,7 @@ import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import github.naixx.core.AppNotification
+import github.naixx.core.DeviceSession
 import github.naixx.core.DeviceState
 import github.naixx.network.ConnectionState
 import github.naixx.network.OutMessage
@@ -16,11 +17,12 @@ import kotlinx.coroutines.flow.onEach
 
 /**
  * The screens' view of the device: a facade over the app-scoped [DeviceState] (which outlives this Activity-scoped
- * view model), kept so the screens keep their property names while they move to the shared :ui module.
+ * view model), kept so the screens keep their property names while they move to the shared :ui module, and over the
+ * shell's [DeviceSession] for what the Status screen does with the connection itself.
  */
 @ViewModelKey
 @ContributesIntoMap(AppScope::class)
-class MainViewModel(private val device: DeviceState) : ViewModel() {
+class MainViewModel(private val device: DeviceState, private val session: DeviceSession) : ViewModel() {
 
     val connectionState: StateFlow<ConnectionState> get() = device.connection
 
@@ -35,6 +37,16 @@ class MainViewModel(private val device: DeviceState) : ViewModel() {
     val program get() = device.program
 
     val deviceClock get() = device.deviceClock
+
+    /** Whether the user can start and stop the connection here (the Android service: yes; the browser: no). */
+    val controllable: Boolean get() = session.controllable
+
+    /** The subnet a [connect] would scan, for the Connect button; null when there is none (offline, the browser). */
+    val subnetLabel: StateFlow<String?> get() = session.subnetLabel
+
+    fun connect() = session.connect()
+
+    fun disconnect() = session.disconnect()
 
     init {
         // Capture errors are toasted while a UI is there to show them; the notification list keeps them anyway.

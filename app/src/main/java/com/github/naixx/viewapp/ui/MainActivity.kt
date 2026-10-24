@@ -39,7 +39,6 @@ import dev.zacsweers.metrox.viewmodel.MetroViewModelFactory
 import github.naixx.core.DeviceSession
 import github.naixx.core.FrameStore
 import github.naixx.network.*
-import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 /**
@@ -66,11 +65,6 @@ class MainActivity(
         }
     }
     private val viewModel: MainViewModel by viewModels { viewModelFactory }
-
-    /** Whether a connection is wanted (the Status tab's Connect / Disconnect button). */
-    val isBound: StateFlow<Boolean> by lazy {
-        session.state.map { it !is ConnectionState.Disconnected }.stateIn(lifecycleScope, SharingStarted.Eagerly, false)
-    }
 
     @OptIn(ExperimentalVoyagerApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -137,17 +131,13 @@ class MainActivity(
                 val auth = api.auth(mapOf("email" to username, "password" to password))
                 storageProvider.session(auth.session)
                 LL.e("Login successful, session: ${auth.session}")
-                startService()
+                session.connect()
             } catch (e: Exception) {
                 LL.e("Login failed: ${e.message}")
                 //TODO show toast
             }
         }
     }
-
-    fun startService() = session.connect()
-
-    fun stopService() = session.disconnect()
 
     private fun requestNotificationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {

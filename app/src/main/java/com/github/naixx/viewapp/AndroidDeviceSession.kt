@@ -2,8 +2,12 @@ package com.github.naixx.viewapp
 
 import android.content.Context
 import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.LinkProperties
+import android.net.Network
 import androidx.core.content.ContextCompat
 import com.github.naixx.logger.LL
+import com.github.naixx.viewapp.network.currentWifiSubnetLabel
 import com.github.naixx.viewapp.network.generateLocalServer
 import com.github.naixx.viewapp.utils.Prefs
 import dev.zacsweers.metro.AppScope
@@ -13,8 +17,12 @@ import github.naixx.core.DeviceSession
 import github.naixx.network.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.stateIn
 
 /**
  * The Android [DeviceSession]: owns the shared [WebSocketClient] and its reconnect loop for the life of the
@@ -42,6 +50,19 @@ class AndroidDeviceSession(
     override val messages = MutableSharedFlow<BaseMessage>(extraBufferCapacity = 256, onBufferOverflow = BufferOverflow.DROP_OLDEST)
 
     override val controllable = true
+
+    /** The phone's Wi-Fi subnet (what [connect] scans), refreshed on every default-network change while someone looks. */
+    override val subnetLabel: StateFlow<String?> = callbackFlow {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            private fun refresh() { trySend(currentWifiSubnetLabel(context)) }
+            override fun onAvailable(network: Network) = refresh()
+            override fun onLost(network: Network) = refresh()
+            override fun onLinkPropertiesChanged(network: Network, linkProperties: LinkProperties) = refresh()
+        }
+        cm.registerDefaultNetworkCallback(callback)
+        awaitClose { cm.unregisterNetworkCallback(callback) }
+    }.stateIn(scope, SharingStarted.WhileSubscribed(), currentWifiSubnetLabel(context))
 
     /**
      * Idempotent: called from the Activity, the login dialog and the service's own start (also when the system
