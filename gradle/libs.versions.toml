@@ -136,6 +136,7 @@ screen-bool = { module = "com.github.MFlisar.ComposePreferences:screen-bool", ve
 screen-button = { module = "com.github.MFlisar.ComposePreferences:screen-button", version.ref = "composepreferences" }
 slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4jSimple" }
 sonner = { module = "io.github.dokar3:sonner", version.ref = "sonner" }
+compose-ui-tooling-preview = { module = "org.jetbrains.compose.ui:ui-tooling-preview", version.ref = "compose-plugin" } # multiplatform androidx.compose.ui.tooling.preview.Preview
 voyager-navigator = { module = "cafe.adriel.voyager:voyager-navigator", version.ref = "voyager" }
 voyager-tab-navigator = { module = "cafe.adriel.voyager:voyager-tab-navigator", version.ref = "voyager" }
 voyager-bottom-sheet-navigator = { module = "cafe.adriel.voyager:voyager-bottom-sheet-navigator", version.ref = "voyager" }

@@ -27,13 +27,22 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
+            api(project(":core")) // the components render :network message types; :core brings :network as api
+            api(libs.voyager.navigator) // SuperNav exposes Navigator
             api(compose.runtime)
             api(compose.foundation)
             api(compose.material3)
             api(compose.ui)
+            api(compose.materialIconsExtended)
             api(libs.sonner) // toasts: EventBus events carry its ToastType
             implementation(libs.kmp.libs.logger)
             implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.compose.ui.tooling.preview) // the multiplatform androidx.compose.ui.tooling.preview.Preview
         }
     }
+}
+
+dependencies {
+    // Android Studio renders the common @Preview functions with ui-tooling on the Android runtime classpath.
+    androidRuntimeClasspath(compose.uiTooling)
 }

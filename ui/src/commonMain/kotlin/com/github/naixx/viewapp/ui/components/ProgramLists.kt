@@ -76,7 +76,7 @@ object ProgramLists {
     /** 00:00 .. 23:30 in 30-minute steps (HH:mm), matching the original schedule pickers. */
     val timeOfDay: List<Opt<String>> = buildList {
         for (h in 0..23) for (m in listOf(0, 30)) {
-            val t = "%02d:%02d".format(h, m)
+            val t = "${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}"
             add(Opt(t, t))
         }
     }

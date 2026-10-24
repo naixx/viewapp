@@ -16,6 +16,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.github.naixx.viewapp.ui.theme.ViewAppTheme
 import kotlin.math.floor
+import com.github.naixx.viewapp.utils.toFixed
 
 /**
  * Vertical padding applied to every [FieldRow], controlling form density. Default is compact;
@@ -49,7 +50,7 @@ fun NumberRow(
     onConfirm: (Double) -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
-    val shown = if (value % 1.0 == 0.0) value.toInt().toString() else "%.${decimals}f".format(value)
+    val shown = if (value % 1.0 == 0.0) value.toInt().toString() else value.toFixed(decimals)
     FieldRow(label) { VSmallButton("$shown$suffix") { open = true } }
     if (open) {
         NumberInputDialog(label, value, onConfirm = { onConfirm(it); open = false }, onDismiss = { open = false })
@@ -87,7 +88,7 @@ fun EvLimitRow(
     }
 }
 
-internal fun evMatches(a: Double?, b: Double?): Boolean =
+fun evMatches(a: Double?, b: Double?): Boolean =
     if (a == null || b == null) a == b else floor(a * 10) == floor(b * 10)
 
 /** A row of selectable chips (the original's `ion-segment`). */
@@ -186,7 +187,7 @@ fun NumberInputDialog(
 /** Describes an in-progress live ramp (a `dynamicChange` entry) for display in [LiveUpdateDialog]. */
 data class RampInfo(val from: Double, val to: Double, val startFrame: Int, val endFrame: Int)
 
-private fun fmt(v: Double): String = if (v % 1.0 == 0.0) v.toInt().toString() else "%.1f".format(v)
+private fun fmt(v: Double): String = if (v % 1.0 == 0.0) v.toInt().toString() else v.toFixed(1)
 
 /**
  * The original's live "Update" modal: pick a new value and how many frames to ramp it over, then

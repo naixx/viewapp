@@ -43,7 +43,7 @@ fun frameCycle(status: Status, deviceNowMs: Long): FrameCycle? {
 }
 
 /** Exposure time of a shutter EV as the VIEW reckons it (`lists.getSecondsFromEv`: 1/64 s at 0 EV, 0.1 s above). */
-internal fun shutterSeconds(ev: Double): Double = if (ev > 0) 0.1 else 2.0.pow(-ev) / 64
+fun shutterSeconds(ev: Double): Double = if (ev > 0) 0.1 else 2.0.pow(-ev) / 64
 
 private val ExposureColor = Color(0xFFE53935)
 private val ProcessingColor = Color(0xFF3D5AFE)

@@ -15,5 +15,8 @@ fun String.removeTrailingZeros(): String {
 /** The number in the current locale with grouping and up to [digits] decimals, trailing zeros dropped. */
 expect fun Number.formatted(digits: Int = 2): String
 
+/** Exactly [digits] decimals, no grouping, in the current locale: what `"%.Nf".format(v)` did on the JVM. */
+expect fun Number.toFixed(digits: Int): String
+
 /** The current locale's decimal separator (the one [formatted] uses). */
 internal expect fun decimalSeparator(): Char
