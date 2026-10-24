@@ -62,13 +62,12 @@ import com.github.naixx.viewapp.ui.components.VButton
 import com.github.naixx.viewapp.ui.components.sampleClipInfo
 import com.github.naixx.viewapp.utils.EventBus
 import com.github.naixx.viewapp.utils.activityViewModel
+import dev.zacsweers.metrox.viewmodel.assistedMetroViewModel
 import github.naixx.network.Clip
 import github.naixx.network.TimelapseClipInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import org.koin.androidx.compose.koinViewModel
-import org.koin.core.parameter.parametersOf
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -79,7 +78,8 @@ class ClipInfoScreen(val clip: Clip) : Screen {
     @Composable
     override fun Content() {
         val mainViewModel = activityViewModel<MainViewModel>()
-        val timelapseViewModel = koinViewModel<TimelapseViewModel>(key = clip.name, parameters = { parametersOf(clip) })
+        val timelapseViewModel =
+            assistedMetroViewModel<TimelapseViewModel, TimelapseViewModel.Factory>(key = clip.name) { create(clip) }
         val conn by mainViewModel.connectionState.collectAsState()
         val storedClipInfo by timelapseViewModel.clipInfo.collectAsState()
         val navigator = LocalNavigator.currentOrThrow
@@ -171,7 +171,7 @@ class ClipInfoScreen(val clip: Clip) : Screen {
         }
 
         OnConnectedEffect(conn) {
-            timelapseViewModel.clipInfo(it)
+            timelapseViewModel.clipInfo()
         }
 
         Column(

@@ -2,33 +2,42 @@ package com.github.naixx.viewweb
 
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.window.ComposeViewport
+import dev.zacsweers.metro.*
 import github.naixx.core.*
-import github.naixx.network.StorageProvider
-import github.naixx.network.networkModule
 import io.github.aakira.napier.DebugAntilog
 import io.github.aakira.napier.Napier
 import kotlinx.browser.document
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import org.koin.core.context.startKoin
-import org.koin.dsl.module
 
-/** The browser shell's bindings for the :core contracts: no files, no database — the page lives as long as the tab. */
-val webModule = module {
-    single<StorageProvider> { WebStorage() }
-    single<DeviceSession> { DirectDeviceSession(get()) }
-    single<FrameStore> { MemoryFrameStore() }
-    single<ClipRepository> { MemoryClipRepository() }
-    single { DeviceState(get(), get(), get(), CoroutineScope(SupervisorJob() + Dispatchers.Default)) }
+/**
+ * The browser shell's graph: `:network` and `:core` arrive through `AppScope` contributions; `WebStorage` and
+ * `DirectDeviceSession` contribute themselves; the stores are in memory — the page lives as long as the tab.
+ */
+@DependencyGraph(AppScope::class)
+interface WebGraph {
+
+    val deviceSession: DeviceSession
+    val deviceState: DeviceState
+}
+
+@ContributesTo(AppScope::class)
+@BindingContainer
+object WebBindings {
+
+    @Provides
+    @SingleIn(AppScope::class)
+    fun frameStore(): FrameStore = MemoryFrameStore()
+
+    @Provides
+    @SingleIn(AppScope::class)
+    fun clipRepository(): ClipRepository = MemoryClipRepository()
 }
 
 @OptIn(ExperimentalComposeUiApi::class)
 fun main() {
     Napier.base(DebugAntilog())
-    val koin = startKoin { modules(networkModule, webModule) }.koin
-    val device = koin.get<DeviceState>() // before connect(), so the handshake is observed
-    koin.get<DeviceSession>().connect()
+    val graph = createGraph<WebGraph>()
+    val device = graph.deviceState // before connect(), so the handshake is observed
+    graph.deviceSession.connect()
 
     document.getElementById("loader")?.remove()
     ComposeViewport(document.body!!) { App(device) }

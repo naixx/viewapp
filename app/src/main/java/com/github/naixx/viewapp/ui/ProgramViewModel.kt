@@ -1,6 +1,9 @@
 package com.github.naixx.viewapp.ui
 
 import androidx.lifecycle.ViewModel
+import dev.zacsweers.metro.AppScope
+import dev.zacsweers.metro.ContributesIntoMap
+import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import github.naixx.network.*
 import kotlinx.coroutines.flow.*
 import kotlinx.serialization.json.JsonObject
@@ -11,9 +14,11 @@ import kotlinx.serialization.json.JsonObject
  * (motion axes, keyframes, …) survive the round-trip.
  *
  * Sends are not performed here — [com.github.naixx.viewapp.ui.MainViewModel.send] is the single
- * outgoing channel; the screen wires the built messages to it. This VM is activity-scoped (shared)
- * via `activityViewModel<ProgramViewModel>()`.
+ * outgoing channel; the screen wires the built messages to it. The screens take it with
+ * `activityViewModel<ProgramViewModel>()` — the Activity's store, so they share one.
  */
+@ViewModelKey
+@ContributesIntoMap(AppScope::class)
 class ProgramViewModel : ViewModel() {
 
     val draft: StateFlow<ProgramDraft?>

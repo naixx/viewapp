@@ -7,23 +7,23 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.*
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
-import cafe.adriel.voyager.core.model.rememberScreenModel
 import cafe.adriel.voyager.core.screen.Screen
 import coil3.compose.AsyncImage
 import com.github.naixx.viewapp.ui.components.*
 import com.github.naixx.viewapp.utils.activityViewModel
+import com.github.naixx.viewapp.utils.screenViewModel
 import github.naixx.network.*
 
 class ClipsScreen() : Screen {
 
     @Composable
     override fun Content() {
-        val viewModel = rememberScreenModel { ClipsViewModel() }
+        val viewModel = screenViewModel<ClipsViewModel>()
         val mainViewModel = activityViewModel<MainViewModel>()
         val conn by mainViewModel.connectionState.collectAsState()
 
         OnConnectedEffect(conn) {
-            viewModel.refreshClips(it)
+            viewModel.refreshClips()
         }
 
         val clips = viewModel.clips.collectAsState()

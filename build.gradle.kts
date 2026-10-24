@@ -9,6 +9,7 @@ plugins {
     alias(libs.plugins.jetbrains.kotlin.jvm) apply false
     alias(libs.plugins.kotlinMultiplatform) apply false
     alias(libs.plugins.jetbrainsCompose) apply false
+    alias(libs.plugins.metro) apply false
 }
 
 val secretsFile = rootProject.file("secrets.properties")

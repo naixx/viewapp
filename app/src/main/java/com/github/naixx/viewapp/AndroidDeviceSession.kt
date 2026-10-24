@@ -6,6 +6,9 @@ import androidx.core.content.ContextCompat
 import com.github.naixx.logger.LL
 import com.github.naixx.viewapp.network.generateLocalServer
 import com.github.naixx.viewapp.utils.Prefs
+import dev.zacsweers.metro.AppScope
+import dev.zacsweers.metro.ContributesBinding
+import dev.zacsweers.metro.SingleIn
 import github.naixx.core.DeviceSession
 import github.naixx.network.*
 import kotlinx.coroutines.*
@@ -15,9 +18,11 @@ import kotlinx.coroutines.flow.StateFlow
 
 /**
  * The Android [DeviceSession]: owns the shared [WebSocketClient] and its reconnect loop for the life of the
- * process (a Koin single), and keeps [WebSocketService] running in the foreground while connected so the system
+ * process (a single in the app graph), and keeps [WebSocketService] running in the foreground while connected so the system
  * leaves the socket alone when the UI is gone. The UI and the service both talk to this object; nothing is bound.
  */
+@SingleIn(AppScope::class)
+@ContributesBinding(AppScope::class)
 class AndroidDeviceSession(
     private val context: Context,
     private val client: WebSocketClient,

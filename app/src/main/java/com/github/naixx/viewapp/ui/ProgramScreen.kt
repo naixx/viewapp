@@ -55,7 +55,6 @@ import com.github.naixx.viewapp.ui.components.sampleProgramRaw
 import com.github.naixx.viewapp.ui.components.evMatches
 import com.github.naixx.viewapp.ui.components.status
 import com.github.naixx.viewapp.ui.theme.ViewAppTheme
-import com.github.naixx.viewapp.utils.activityViewModel
 import com.github.naixx.viewapp.utils.formatted
 import github.naixx.network.CameraDetails
 import github.naixx.network.CameraSettings

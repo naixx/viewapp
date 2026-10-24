@@ -7,6 +7,13 @@ import com.github.naixx.logger.LL
 import com.github.naixx.viewapp.encoding.*
 import com.github.naixx.viewapp.utils.EventBus
 import com.github.naixx.viewapp.utils.lumaHistogram
+import dev.zacsweers.metro.AppScope
+import dev.zacsweers.metro.Assisted
+import dev.zacsweers.metro.AssistedFactory
+import dev.zacsweers.metro.AssistedInject
+import dev.zacsweers.metro.ContributesIntoMap
+import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactory
+import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactoryKey
 import github.naixx.core.ClipRepository
 import github.naixx.core.DeviceState
 import github.naixx.core.DownloadResult
@@ -15,8 +22,6 @@ import github.naixx.core.FrameDownloader
 import github.naixx.network.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
-import org.koin.core.component.*
-import org.koin.core.parameter.parametersOf
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
@@ -24,11 +29,28 @@ import java.util.concurrent.ConcurrentHashMap
  * One clip's frames on this device: what is cached, the download, playback position, the histogram of a frame and
  * the MP4 export. Frames live in the [FileSystemFrameStore]; a running time-lapse's frames arrive through
  * [DeviceState.frameWritten]. The `context` parameters are kept for the screens until they move to the shared UI.
+ * Created per clip through [Factory].
  */
+@AssistedInject
 class TimelapseViewModel(
-    private val clip: Clip,
+    @Assisted private val clip: Clip,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-) : ViewModel(), KoinComponent {
+    // The concrete store: the player and the exporter still want java.io.Files (see getFrameFile) until step 10.
+    private val frames: FileSystemFrameStore,
+    private val device: DeviceState,
+    private val videoExportRepository: VideoExportRepository,
+    private val clips: ClipRepository,
+    private val api: ViewApi,
+) : ViewModel() {
+
+    /** Per clip, from a composable: `assistedMetroViewModel<TimelapseViewModel, Factory>(key = clip.name) { create(clip) }`. */
+    @AssistedFactory
+    @ManualViewModelAssistedFactoryKey
+    @ContributesIntoMap(AppScope::class)
+    fun interface Factory : ManualViewModelAssistedFactory {
+
+        fun create(clip: Clip): TimelapseViewModel
+    }
 
     val downloadedFrames: MutableStateFlow<List<Int>> = MutableStateFlow(emptyList())
     val currentFrameIndex: MutableStateFlow<Int> = MutableStateFlow(0)
@@ -44,11 +66,6 @@ class TimelapseViewModel(
 
     private var downloadJob: Job? = null
     private var exportJob: Job? = null
-    // The concrete store: the player and the exporter still want java.io.Files (see getFrameFile) until step 10.
-    private val frames: FileSystemFrameStore by inject()
-    private val device: DeviceState by inject()
-    private val videoExportRepository: VideoExportRepository by inject()
-    private val clips: ClipRepository by inject()
 
     /** Frame histograms by frame number; ~1 KB each, computed once so playback doesn't redo them. */
     private val histograms = ConcurrentHashMap<Int, List<Int>>()
@@ -100,9 +117,8 @@ class TimelapseViewModel(
     /**
      * Get information about the current clip
      */
-    suspend fun clipInfo(state: ConnectionState.Connected): UiState<TimelapseClipInfo?> = catching {
-        val viewApi: ViewApi = get<ViewApi> { parametersOf(state.address.fromUrl) }
-        val info = viewApi.clipInfo(clip.name)
+    suspend fun clipInfo(): UiState<TimelapseClipInfo?> = catching {
+        val info = api.clipInfo(clip.name)
 
         // Remember the fetched info
         viewModelScope.launch {
@@ -121,8 +137,7 @@ class TimelapseViewModel(
 
         // Check the connection up front so a tap while disconnected gives immediate feedback instead
         // of silently launching a coroutine that fails inside.
-        val state = connectionState as? ConnectionState.Connected
-        if (state == null) {
+        if (connectionState !is ConnectionState.Connected) {
             EventBus.error("Not connected to a view server")
             return
         }
@@ -131,13 +146,12 @@ class TimelapseViewModel(
         downloadJob = viewModelScope.launch {
             val thisJob = coroutineContext[Job]
             try {
-                val viewApi: ViewApi = get { parametersOf(state.address.fromUrl) }
-                val info = viewApi.clipInfo(clip.name).also {
+                val info = api.clipInfo(clip.name).also {
                     clips.saveClipInfo(it)
                 }
                 val totalFrames = info.frames ?: return@launch
 
-                val result = FrameDownloader(viewApi, frames, ioDispatcher).download(clip.name, totalFrames) {
+                val result = FrameDownloader(api, frames, ioDispatcher).download(clip.name, totalFrames) {
                     downloadedFrames.value = it
                 }
                 if (result is DownloadResult.Failed) EventBus.error(result.message)

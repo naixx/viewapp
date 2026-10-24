@@ -1,23 +1,25 @@
 package com.github.naixx.viewapp
 
 import android.app.*
-import com.github.naixx.viewapp.di.encodingModule
-import github.naixx.db.dbModule
-import github.naixx.network.*
+import dev.zacsweers.metro.createGraphFactory
+import dev.zacsweers.metrox.android.MetroAppComponentProviders
+import dev.zacsweers.metrox.android.MetroApplication
 import io.github.aakira.napier.*
-import org.koin.android.ext.koin.*
-import org.koin.core.context.GlobalContext.startKoin
 
-class App : Application() {
+class App : Application(), MetroApplication {
+
+    /**
+     * The dependency graph; built on first use (docs/2026-10-24-shared-ui-architecture.md, step 8). Nothing reaches it
+     * directly: the Activity, the service and the view models are constructed by it (see AppGraph).
+     */
+    private val graph: AppGraph by lazy { createGraphFactory<AppGraph.Factory>().create(this) }
+
+    /** ViewAppComponentFactory (manifest) asks here for the Activity and the service. */
+    override val appComponentProviders: MetroAppComponentProviders get() = graph
 
     override fun onCreate() {
         super.onCreate()
         Napier.base(DebugAntilog())
-        startKoin {
-            androidLogger()
-            androidContext(this@App)
-            modules(networkModule, appModule, encodingModule, dbModule)
-        }
         createNotificationChannel()
     }
 
@@ -47,4 +49,3 @@ class App : Application() {
         manager?.createNotificationChannel(errorsChannel)
     }
 }
-

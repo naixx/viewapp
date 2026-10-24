@@ -11,43 +11,31 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.*
 import org.junit.runner.RunWith
-import org.koin.core.component.get
-import org.koin.core.context.*
-import org.koin.dsl.module
-import org.koin.test.*
 import org.robolectric.annotation.Config
 import kotlin.test.assertNotNull
 import kotlin.time.measureTime
 
-val testModule = module {
-    single<StorageProvider> {
-        mockk<StorageProvider>(relaxed = true).apply {
-            every { session() } returns System.getProperty("session")
-        }
-    }
-}
-
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [30])
-class ExampleRobolectricTest : KoinTest {
+class ExampleRobolectricTest {
 
-    // Dependency injection
+    private val storageProvider: StorageProvider = mockk<StorageProvider>(relaxed = true).apply {
+        every { session() } returns System.getProperty("session")
+    }
+    private lateinit var client: HttpClient
+
     @Before
     fun setup() {
-        stopKoin()
-        startKoin {
-            modules(listOf(networkModule, testModule))
-        }
+        client = createHttpClient(createJson(), storageProvider)
     }
 
     @After
     fun tearDown() {
-        stopKoin()
+        client.close()
     }
 
     @Test
     fun testSessionExists() {
-        val storageProvider: StorageProvider by inject()
         val session = storageProvider.session()
         assertNotNull(session)
     }
@@ -58,7 +46,6 @@ class ExampleRobolectricTest : KoinTest {
         Assume.assumeTrue("live test: run with -Pargs.live=true and a VIEW on the network", System.getProperty("live") == "true")
         val appContext = ApplicationProvider.getApplicationContext<Application>()
         val result: AddressResponse?
-        val client = get<HttpClient>()
         val dur = measureTime {
             val urls = generateLocalServer(appContext)
             result = client.scanHosts(urls + listOf(REMOTE_URL))

@@ -14,32 +14,37 @@ import com.github.naixx.viewapp.network.holdViewAp
 import com.github.naixx.viewapp.ui.MainActivity
 import com.github.naixx.viewapp.utils.AppForeground
 import com.github.naixx.viewapp.utils.Prefs
+import dev.zacsweers.metro.AppScope
+import dev.zacsweers.metro.ContributesIntoMap
+import dev.zacsweers.metrox.android.ServiceKey
 import github.naixx.core.DeviceSession
 import github.naixx.core.DeviceState
 import github.naixx.network.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
-import org.koin.android.ext.android.inject
 
 /**
  * The foreground anchor of the connection: it keeps the process alive while [AndroidDeviceSession] is connected
  * and does the Android-only work around it — the ongoing notification, holding the VIEW's hotspot and raising a
  * heads-up notification for capture errors while the app is in the background. The connection itself lives in
  * the session and the live-frame cache in DeviceState; this service starts and stops with the session.
+ *
+ * Built by the graph through MetroAppComponentFactory (see AppGraph), hence the constructor. [deviceState] is taken
+ * here so the typed state (and with it the handshake after every connect) exists whenever the connection does, even
+ * if the system restarted the service without the UI.
  */
-class WebSocketService : Service() {
+@ServiceKey
+@ContributesIntoMap(AppScope::class)
+class WebSocketService(
+    private val session: DeviceSession,
+    private val deviceState: DeviceState,
+) : Service() {
 
     companion object {
 
         const val ACTION_STOP_SERVICE = "com.github.naixx.viewapp.STOP_SERVICE"
     }
-
-    private val session: DeviceSession by inject()
-
-    // Created here so the typed state (and with it the handshake after every connect) exists whenever the
-    // connection does, even if the system restarted the service without the UI.
-    private val deviceState: DeviceState by inject()
 
     private val exceptionHandler = CoroutineExceptionHandler { _, e -> LL.e(e) }
     private lateinit var serviceScope: CoroutineScope
@@ -48,9 +53,8 @@ class WebSocketService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        LL.e("onCreate")
+        LL.e("onCreate; device ${deviceState.connection.value}")
         serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob() + exceptionHandler)
-        deviceState // instantiate
         serviceScope.launch {
             if (Prefs.apMode) setAccessPointMode(true) // the device was last reached on its hotspot
             session.state.collect {

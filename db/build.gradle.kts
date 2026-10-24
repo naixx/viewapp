@@ -1,6 +1,7 @@
 plugins {
     id("com.android.library")
     alias(libs.plugins.ksp)
+    alias(libs.plugins.metro)
 }
 
 android {
@@ -32,8 +33,6 @@ dependencies {
     implementation(project(":core")) // ClipRepository, which this module implements with Room
 
     implementation(libs.androidx.core.ktx)
-    implementation(libs.koin.core)
-    implementation(libs.koin.android)
     implementation(libs.kotlinx.collections.immutable)
 
     // Room

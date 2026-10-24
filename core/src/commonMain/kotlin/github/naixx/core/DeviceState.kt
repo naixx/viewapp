@@ -1,6 +1,9 @@
 package github.naixx.core
 
 import com.github.naixx.logger.LL
+import dev.zacsweers.metro.AppScope
+import dev.zacsweers.metro.Inject
+import dev.zacsweers.metro.SingleIn
 import github.naixx.network.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.*
@@ -23,6 +26,8 @@ import kotlin.time.Clock
  *
  * @param clock the client's clock (notification times, the device-clock offset); tests pass a fake.
  */
+@Inject
+@SingleIn(AppScope::class)
 class DeviceState(
     private val session: DeviceSession,
     private val storage: StorageProvider,

@@ -18,15 +18,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.*
 import kotlinx.io.files.Path
-import org.koin.dsl.bind
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.koin.core.context.startKoin
-import org.koin.core.context.stopKoin
-import org.koin.dsl.module
-import org.koin.test.KoinTest
 import org.robolectric.annotation.Config
 import java.io.File
 import kotlin.test.assertEquals
@@ -44,7 +39,7 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [30])
-class DownloadFlowTest : KoinTest {
+class DownloadFlowTest {
 
     private val dispatcher = StandardTestDispatcher()
 
@@ -52,6 +47,8 @@ class DownloadFlowTest : KoinTest {
     private val exportRepo = mockk<VideoExportRepository>(relaxed = true)
 
     private lateinit var context: Context
+    private lateinit var frameStore: FileSystemFrameStore
+    private lateinit var deviceState: DeviceState
 
     /** No device in these tests: the session never connects and sends nothing. */
     private val idleSession = object : DeviceSession {
@@ -63,27 +60,18 @@ class DownloadFlowTest : KoinTest {
         override fun disconnect() = Unit
     }
 
-    private val testModule = module {
-        factory<ViewApi> { (_: String) -> viewApi }
-        single<ClipRepository> { MemoryClipRepository() }
-        single<VideoExportRepository> { exportRepo }
-        single { FileSystemFrameStore(Path(context.filesDir.path), dispatcher) } bind FrameStore::class
-        single { DeviceState(idleSession, mockk(relaxed = true), get(), CoroutineScope(dispatcher)) }
-    }
-
     @Before
     fun setup() {
         Dispatchers.setMain(dispatcher)
         context = ApplicationProvider.getApplicationContext()
         clearTimelapseCache()
-        stopKoin()
-        startKoin { modules(testModule) }
+        frameStore = FileSystemFrameStore(Path(context.filesDir.path), dispatcher)
+        deviceState = DeviceState(idleSession, mockk(relaxed = true), frameStore, CoroutineScope(dispatcher))
     }
 
     @After
     fun tearDown() {
         Dispatchers.resetMain()
-        stopKoin()
         clearTimelapseCache()
         clearAllMocks()
     }
@@ -92,8 +80,10 @@ class DownloadFlowTest : KoinTest {
         File(context.filesDir, "timelapses").deleteRecursively()
     }
 
-    private fun vm(frames: Int, name: String = "tl-1") =
-        TimelapseViewModel(clip(frames, name), dispatcher)
+    // The same wiring the graph's TimelapseViewModel.Factory does, with the test's doubles.
+    private fun vm(frames: Int, name: String = "tl-1") = TimelapseViewModel(
+        clip(frames, name), dispatcher, frameStore, deviceState, exportRepo, MemoryClipRepository(), viewApi,
+    )
 
     private fun clip(frames: Int, name: String = "tl-1") =
         Clip(index = 0, id = 1, frames = frames, name = name, imageBase64 = null)

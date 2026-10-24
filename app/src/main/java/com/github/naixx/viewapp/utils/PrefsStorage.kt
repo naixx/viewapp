@@ -1,7 +1,12 @@
 package com.github.naixx.viewapp.utils
 
+import dev.zacsweers.metro.AppScope
+import dev.zacsweers.metro.ContributesBinding
+import dev.zacsweers.metro.SingleIn
 import github.naixx.network.StorageProvider
 
+@SingleIn(AppScope::class)
+@ContributesBinding(AppScope::class)
 class PrefsStorage : StorageProvider {
 
     override fun session(): String? {

@@ -59,6 +59,7 @@ import com.github.naixx.viewapp.ui.components.sampleProgram
 import com.github.naixx.viewapp.ui.components.sampleProgramRaw
 import com.github.naixx.viewapp.ui.components.status
 import com.github.naixx.viewapp.utils.activityViewModel
+import dev.zacsweers.metrox.viewmodel.assistedMetroViewModel
 import com.github.naixx.viewapp.utils.formatted
 import github.naixx.network.Battery
 import github.naixx.network.CameraDetails
@@ -81,8 +82,6 @@ import github.naixx.network.UpdateProgram
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import org.koin.androidx.compose.koinViewModel
-import org.koin.core.parameter.parametersOf
 import java.util.Locale
 
 // Live (dynamicChange) mode options — only auto/fixed are switchable mid-run.
@@ -159,11 +158,11 @@ class StatusScreen : Screen {
                 )
             }
         }
-        val timelapseViewModel = clip?.let {
+        val timelapseViewModel = clip?.let { tl ->
             // Key by timelapse name so a new capture (tl-415) gets a fresh VM instead of reusing the
-            // previous one (tl-414): koinViewModel caches by key, and without one the parametersOf(clip)
-            // change is ignored, leaving the old clip's directory wired up for reads/writes.
-            koinViewModel<TimelapseViewModel>(key = it.name, parameters = { parametersOf(it) })
+            // previous one (tl-414): the ViewModelStore caches by key, and without one the clip change
+            // would be ignored, leaving the old clip's directory wired up for reads/writes.
+            assistedMetroViewModel<TimelapseViewModel, TimelapseViewModel.Factory>(key = tl.name) { create(tl) }
         }
         val context = LocalContext.current
 

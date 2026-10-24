@@ -8,6 +8,7 @@ plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.jetbrainsCompose)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.metro)
 }
 
 kotlin {
@@ -31,7 +32,6 @@ kotlin {
             implementation(compose.material3)
             implementation(compose.ui)
 
-            implementation(libs.koin.core)
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.client.websockets)

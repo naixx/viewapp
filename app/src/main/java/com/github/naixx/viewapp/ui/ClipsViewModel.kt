@@ -1,32 +1,39 @@
 package com.github.naixx.viewapp.ui
 
-import cafe.adriel.voyager.core.model.ScreenModel
-import cafe.adriel.voyager.core.model.screenModelScope
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.github.naixx.logger.LL
+import dev.zacsweers.metro.AppScope
+import dev.zacsweers.metro.ContributesIntoMap
+import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import github.naixx.core.ClipRepository
-import github.naixx.network.ConnectionState
 import github.naixx.network.ViewApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import org.koin.core.component.KoinComponent
-import org.koin.core.component.inject
-import org.koin.core.parameter.parametersOf
 
-class ClipsViewModel : ScreenModel, KoinComponent {
-    private val clipRepository: ClipRepository by inject()
+/**
+ * The Clips tab's list. A `ViewModel` like the others (it used to be a Voyager `ScreenModel`, which only Koin could
+ * build), taken with `screenViewModel()`: it lives and dies with the Clips screen, as the `ScreenModel` did.
+ */
+@ViewModelKey
+@ContributesIntoMap(AppScope::class)
+class ClipsViewModel(
+    private val clipRepository: ClipRepository,
+    private val api: ViewApi,
+) : ViewModel() {
 
     val clips = clipRepository.getAllClips().stateIn(
-        screenModelScope,
+        viewModelScope,
         SharingStarted.Lazily,
         emptyList()
     )
 
-    fun refreshClips(connection: ConnectionState.Connected) {
-        screenModelScope.launch {
+    /** Pull the device's clip list; call it once connected (the api follows the connection). */
+    fun refreshClips() {
+        viewModelScope.launch {
             try {
-                val viewApi: ViewApi = inject<ViewApi> { parametersOf(connection.address.fromUrl) }.value
-                clipRepository.refreshClips(viewApi)
+                clipRepository.refreshClips(api)
             } catch (e: Exception) {
                 LL.e(e)
             }

@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.ktorfit)
     alias(libs.plugins.kotlinSerialization)
+    alias(libs.plugins.metro) // compile-time DI: contributions to AppScope, picked up by the shells' graphs
 }
 
 kotlin {
@@ -29,7 +30,6 @@ kotlin {
             implementation(libs.kmp.libs.core)
             implementation(libs.kmp.libs.logger)
 
-            implementation(libs.koin.core)
             implementation(libs.ktorfit)
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.client.content.negotiation)
@@ -56,7 +56,6 @@ kotlin {
         jvmTest.dependencies {
             implementation(libs.jetbrains.kotlin.test.junit)
             implementation(libs.mockk)
-            implementation(libs.koin.test)
             implementation(libs.slf4j.simple)
             implementation(libs.kotlinx.coroutines.test)
         }

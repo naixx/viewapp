@@ -1,6 +1,9 @@
 package com.github.naixx.viewweb
 
 import com.github.naixx.logger.LL
+import dev.zacsweers.metro.AppScope
+import dev.zacsweers.metro.ContributesBinding
+import dev.zacsweers.metro.SingleIn
 import github.naixx.core.DeviceSession
 import github.naixx.network.*
 import kotlinx.browser.window
@@ -14,6 +17,8 @@ import kotlinx.coroutines.flow.StateFlow
  * VIEW, so the device is at the page's own origin — one candidate, no subnet scan — and the client's reconnect
  * loop covers a tab that iOS froze and thawed. Nothing to start or stop for the user: the page is the connection.
  */
+@SingleIn(AppScope::class)
+@ContributesBinding(AppScope::class)
 class DirectDeviceSession(private val client: WebSocketClient) : DeviceSession {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)

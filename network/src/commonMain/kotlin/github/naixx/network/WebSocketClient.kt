@@ -1,7 +1,11 @@
 package github.naixx.network
 
 import com.github.naixx.logger.LL
+import dev.zacsweers.metro.AppScope
+import dev.zacsweers.metro.Inject
+import dev.zacsweers.metro.SingleIn
 import github.naixx.network.AddressResponse.Address
+import github.naixx.network.internal.KtorfitClientProvider
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.websocket.*
@@ -10,8 +14,6 @@ import io.ktor.websocket.Frame
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.serialization.json.Json
-import org.koin.core.component.*
-import org.koin.core.parameter.parametersOf
 
 const val ACCESS_POINT_URL = "http://10.0.0.1/"
 const val REMOTE_URL = "https://app.view.tl/"
@@ -25,11 +27,16 @@ sealed interface ConnectionState {
     data class Connected(val address: Address, val isLocal: Boolean) : ConnectionState
 }
 
+@Inject
+@SingleIn(AppScope::class)
 class WebSocketClient(
     private val json: Json,
     private val client: HttpClient,
     private val storageProvider: StorageProvider,
-) : KoinComponent {
+) {
+
+    // Auto-login talks to the host that just answered the probe, before any connection state exists.
+    private val apis = KtorfitClientProvider(client)
 
     var session: DefaultClientWebSocketSession? = null
     val connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
@@ -66,7 +73,7 @@ class WebSocketClient(
                     }
 
                     is AddressResponse.LoginRequired -> {
-                        val api = get<ViewApi>(parameters = { parametersOf(foundServer.fromUrl) })
+                        val api = apis.api(foundServer.fromUrl ?: REMOTE_URL)
                         try {
                             // Get credentials from StorageProvider
                             val email = storageProvider.email()!!

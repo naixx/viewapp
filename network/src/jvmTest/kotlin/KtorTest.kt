@@ -1,5 +1,6 @@
 import github.naixx.network.*
 import github.naixx.network.AddressResponse.Address
+import github.naixx.network.internal.KtorfitClientProvider
 import io.ktor.client.HttpClient
 import io.ktor.client.call.NoTransformationFoundException
 import io.ktor.client.plugins.websocket.sendSerialized
@@ -7,46 +8,38 @@ import io.ktor.websocket.*
 import io.mockk.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
-import kotlinx.serialization.json.Json
 import org.junit.*
-import org.koin.core.context.*
-import org.koin.core.parameter.parametersOf
-import org.koin.dsl.module
-import org.koin.test.*
 import kotlin.test.*
 import kotlin.test.Test
 import kotlin.time.measureTime
-
-val testModule = module {
-    single<StorageProvider> {
-        mockk<StorageProvider>(relaxed = true).apply {
-            every { session() } returns System.getProperty("session")
-        }
-    }
-}
 
 /**
  * Live tests against a real VIEW ([WIFI_URL] / [ACCESS_POINT_URL]) and the remote relay ([REMOTE_URL]). Skipped
  * unless the build is run with `-Pargs.live=true` (or `live=true` in secrets.properties); the device must be on.
  */
-class KtorTest : KoinTest {
+class KtorTest {
 
-    lateinit var api: ViewApi
-    lateinit var json: Json
+    private val storage: StorageProvider = mockk<StorageProvider>(relaxed = true).apply {
+        every { session() } returns System.getProperty("session")
+    }
+    private lateinit var http: HttpClient
+    private lateinit var apis: KtorfitClientProvider
+    private lateinit var api: ViewApi
+    private lateinit var webSocketClient: WebSocketClient
 
     @Before
     fun setup() {
         Assume.assumeTrue("live tests: run with -Pargs.live=true and a VIEW on the network", System.getProperty("live") == "true")
-        startKoin {
-            modules(listOf(networkModule, testModule))
-        }
-        api = get<ViewApi>(parameters = { parametersOf(REMOTE_URL) })
-        json = get()
+        // The same objects the shells' graphs build.
+        http = createHttpClient(createJson(), storage)
+        apis = KtorfitClientProvider(http)
+        api = apis.api(REMOTE_URL)
+        webSocketClient = WebSocketClient(createJson(), http, storage)
     }
 
     @After
     fun close() {
-        stopKoin()
+        if (::http.isInitialized) http.close()
     }
 
     // Not runTest: its virtual clock fires Ktor's HttpTimeout at once, before any real response can arrive.
@@ -75,7 +68,7 @@ class KtorTest : KoinTest {
 
     @Test
     fun `validate that clip info can be deserialized`() = runLive {
-        val api = get<ViewApi>(parameters = { parametersOf(WIFI_URL) })
+        val api = apis.api(WIFI_URL)
 
         for (i in 101..329) {
             try {
@@ -116,12 +109,11 @@ class KtorTest : KoinTest {
     fun `find first available server with api`() = runLive {
         val base = "http://192.168.31."
         val result: AddressResponse?
-        val client = get<HttpClient>()
         val dur = measureTime {
             result = withTimeoutOrNull(60000) {
                 val urls = (1..254).map { "$base$it/" }.toMutableList()
                 urls.add(128, REMOTE_URL)
-                client.scanHosts(urls)
+                http.scanHosts(urls)
             }
         }
         println(dur)
@@ -131,15 +123,12 @@ class KtorTest : KoinTest {
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun `connect ws`() = runLive {
-        val g = get<StorageProvider>()
-        val webSocketClient: WebSocketClient = get()
-
         val messageReceived = CompletableDeferred<BaseMessage>()
 
         val webSocketJob = launch(Dispatchers.Default.limitedParallelism(1)) {
             // Base URLs: scanHosts' probe appends socket/address itself. The unit is on the LAN or its own hotspot.
             webSocketClient.startWebSocket(listOf(WIFI_URL, ACCESS_POINT_URL), emptyList(), { ses, state ->
-                ses.sendSerialized(Session(g.session() ?: ""))
+                ses.sendSerialized(Session(storage.session() ?: ""))
                 ses.sendSerialized(Get("camera"))
                 ses.sendSerialized(Ping())
             }) { message ->

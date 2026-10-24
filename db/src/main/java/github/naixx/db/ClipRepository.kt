@@ -1,5 +1,8 @@
 package github.naixx.db
 
+import dev.zacsweers.metro.AppScope
+import dev.zacsweers.metro.ContributesBinding
+import dev.zacsweers.metro.SingleIn
 import github.naixx.core.ClipRepository
 import github.naixx.network.Clip
 import github.naixx.network.TimelapseClipInfo
@@ -10,6 +13,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
 /** The Android [ClipRepository]: Room, so the Clips tab works offline and clip details survive restarts. */
+@SingleIn(AppScope::class)
+@ContributesBinding(AppScope::class)
 class RoomClipRepository(
     private val clipDao: ClipDao,
     private val clipInfoDao: TimelapseClipInfoDao,

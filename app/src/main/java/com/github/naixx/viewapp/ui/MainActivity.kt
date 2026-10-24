@@ -1,6 +1,7 @@
 package com.github.naixx.viewapp.ui
 
 import android.Manifest
+import android.app.Activity
 import android.content.*
 import android.content.pm.PackageManager
 import android.os.*
@@ -19,21 +20,36 @@ import coil3.compose.setSingletonImageLoaderFactory
 import coil3.network.ktor3.KtorNetworkFetcherFactory
 import coil3.request.crossfade
 import coil3.util.DebugLogger
+import androidx.activity.viewModels
 import com.github.naixx.logger.LL
 import com.github.naixx.viewapp.ui.components.LocalSuperNavigator
 import com.github.naixx.viewapp.ui.theme.ViewAppTheme
 import com.github.naixx.viewapp.utils.AppForeground
 import com.github.naixx.viewapp.utils.ClipMapper
 import com.github.naixx.viewapp.utils.ToastMessageHandler
+import dev.zacsweers.metro.AppScope
+import dev.zacsweers.metro.ContributesIntoMap
+import dev.zacsweers.metro.binding
+import dev.zacsweers.metrox.android.ActivityKey
+import dev.zacsweers.metrox.viewmodel.LocalMetroViewModelFactory
+import dev.zacsweers.metrox.viewmodel.MetroViewModelFactory
 import github.naixx.core.DeviceSession
 import github.naixx.network.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import org.koin.android.ext.android.*
-import org.koin.androidx.viewmodel.ext.android.viewModel
-import org.koin.core.parameter.parametersOf
 
-class MainActivity : ComponentActivity() {
+/**
+ * Built by the graph through MetroAppComponentFactory (see AppGraph), hence the constructor. The view-model factory
+ * serves `by viewModels` here and, as `LocalMetroViewModelFactory`, the screens' `activityViewModel()` / `screenViewModel()`.
+ */
+@ActivityKey
+@ContributesIntoMap(AppScope::class, binding = binding<Activity>())
+class MainActivity(
+    private val storageProvider: StorageProvider,
+    private val session: DeviceSession,
+    private val api: ViewApi,
+    private val viewModelFactory: MetroViewModelFactory,
+) : ComponentActivity() {
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -44,9 +60,7 @@ class MainActivity : ComponentActivity() {
             LL.e("Notification permission denied")
         }
     }
-    private val storageProvider: StorageProvider by inject()
-    private val session: DeviceSession by inject()
-    private val viewModel: MainViewModel by viewModel()
+    private val viewModel: MainViewModel by viewModels { viewModelFactory }
 
     /** Whether a connection is wanted (the Status tab's Connect / Disconnect button). */
     val isBound: StateFlow<Boolean> by lazy {
@@ -72,42 +86,44 @@ class MainActivity : ComponentActivity() {
                     .logger(DebugLogger())
                     .build()
             }
-            ViewAppTheme {
-                Surface(Modifier.fillMaxSize()) {
+            CompositionLocalProvider(LocalMetroViewModelFactory provides viewModelFactory) {
+                ViewAppTheme {
+                    Surface(Modifier.fillMaxSize()) {
 
-                    val conn by viewModel.connectionState.collectAsState()
+                        val conn by viewModel.connectionState.collectAsState()
 
-                    Navigator(
-                        MainScreen, disposeBehavior = NavigatorDisposeBehavior( //to preserve models
-                            disposeNestedNavigators = false,
-                            disposeSteps = true
-                        )
-                    ) { superNav ->
-                        CompositionLocalProvider(LocalSuperNavigator provides superNav) {
-                            CurrentScreen()
+                        Navigator(
+                            MainScreen, disposeBehavior = NavigatorDisposeBehavior( //to preserve models
+                                disposeNestedNavigators = false,
+                                disposeSteps = true
+                            )
+                        ) { superNav ->
+                            CompositionLocalProvider(LocalSuperNavigator provides superNav) {
+                                CurrentScreen()
+                            }
+                        }
+                        val c = conn
+                        if (c is ConnectionState.LoginRequired) {
+                            LoginDialog(
+                                onLogin = { username, password ->
+                                    apiLogin(username, password)
+                                }
+                            )
                         }
                     }
-                    val c = conn
-                    if (c is ConnectionState.LoginRequired) {
-                        LoginDialog(
-                            onLogin = { username, password ->
-                                apiLogin(c, username, password)
-                            }
-                        )
-                    }
-                }
-                ToastMessageHandler()
+                    ToastMessageHandler()
 
+                }
             }
         }
     }
 
-    private fun apiLogin(conn: ConnectionState.LoginRequired, username: String, password: String) {
+    private fun apiLogin(username: String, password: String) {
         LL.e("Login attempt with $username")
         lifecycleScope.launch {
             try {
-                val viewApi: ViewApi = get<ViewApi>(parameters = { parametersOf(conn.address.fromUrl) })
-                val auth = viewApi.auth(mapOf("email" to username, "password" to password))
+                // The api follows the connection: LoginRequired carries the host that asked.
+                val auth = api.auth(mapOf("email" to username, "password" to password))
                 storageProvider.session(auth.session)
                 LL.e("Login successful, session: ${auth.session}")
                 startService()

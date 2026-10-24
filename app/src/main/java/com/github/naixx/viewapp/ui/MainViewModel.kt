@@ -3,6 +3,9 @@ package com.github.naixx.viewapp.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.naixx.viewapp.utils.EventBus
+import dev.zacsweers.metro.AppScope
+import dev.zacsweers.metro.ContributesIntoMap
+import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import github.naixx.core.AppNotification
 import github.naixx.core.DeviceState
 import github.naixx.network.ConnectionState
@@ -15,6 +18,8 @@ import kotlinx.coroutines.flow.onEach
  * The screens' view of the device: a facade over the app-scoped [DeviceState] (which outlives this Activity-scoped
  * view model), kept so the screens keep their property names while they move to the shared :ui module.
  */
+@ViewModelKey
+@ContributesIntoMap(AppScope::class)
 class MainViewModel(private val device: DeviceState) : ViewModel() {
 
     val connectionState: StateFlow<ConnectionState> get() = device.connection

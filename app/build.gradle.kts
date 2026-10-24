@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.metro)
 }
 
 android {
@@ -110,7 +111,6 @@ dependencies {
     implementation(libs.voyager.navigator)
     implementation(libs.voyager.transitions)
     implementation(libs.voyager.tab.navigator)
-    implementation(libs.voyager.screenmodel)
 
     implementation(libs.kmp.libs.logger)
     implementation(libs.kmp.libs.prefs)
@@ -129,10 +129,9 @@ dependencies {
     implementation(libs.ktor.client.websockets)
     implementation(libs.kotlinx.coroutines.android)
 
-    implementation(libs.koin.core)
-    implementation(libs.koin.androidx.compose)
-    implementation(libs.koin.compose)
     implementation(libs.ktorfit)
+    implementation(libs.metrox.android) // MetroAppComponentFactory: the Activity and the service are built by the graph
+    implementation(libs.metrox.viewmodel.compose) // view models: @ViewModelKey map + metroViewModel()
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.client.content.negotiation)
     implementation(libs.ktor.client.logging)
@@ -156,14 +155,15 @@ dependencies {
     testImplementation(libs.robolectric)
     testImplementation("androidx.test:core-ktx:1.6.1")
     testImplementation(libs.androidx.test.junit)
-    testImplementation(libs.koin.test)
     testImplementation(libs.mockk)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.jetbrains.kotlin.test.junit) // used to come with koin-test
+    testImplementation(libs.androidx.ui.test.junit4) // ViewModelScopesTest: Compose + Voyager under Robolectric
 
+    androidTestImplementation(libs.jetbrains.kotlin.test.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.ui.test.junit4)
-    androidTestImplementation(libs.koin.test)
     androidTestImplementation(libs.slf4j.simple)
     androidTestImplementation(libs.mockk.android)
 

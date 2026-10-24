@@ -5,6 +5,7 @@ import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 // jvm target serves the Android modules and the JVM tests, and wasmJs serves :web.
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
+    alias(libs.plugins.metro)
 }
 
 kotlin {
