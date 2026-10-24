@@ -131,7 +131,6 @@ dependencies {
 
     implementation(libs.ktorfit)
     implementation(libs.metrox.android) // MetroAppComponentFactory: the Activity and the service are built by the graph
-    implementation(libs.metrox.viewmodel.compose) // view models: @ViewModelKey map + metroViewModel()
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.client.content.negotiation)
     implementation(libs.ktor.client.logging)

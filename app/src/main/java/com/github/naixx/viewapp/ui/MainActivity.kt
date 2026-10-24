@@ -27,6 +27,7 @@ import com.github.naixx.viewapp.ui.components.frames
 import com.github.naixx.viewapp.ui.theme.ViewAppTheme
 import com.github.naixx.viewapp.utils.AppForeground
 import com.github.naixx.viewapp.utils.ClipMapper
+import com.github.naixx.viewapp.utils.LocalActivityViewModelStoreOwner
 import com.github.naixx.viewapp.utils.ToastMessageHandler
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesIntoMap
@@ -90,7 +91,10 @@ class MainActivity(
                     .logger(DebugLogger())
                     .build()
             }
-            CompositionLocalProvider(LocalMetroViewModelFactory provides viewModelFactory) {
+            CompositionLocalProvider(
+                LocalMetroViewModelFactory provides viewModelFactory,
+                LocalActivityViewModelStoreOwner provides this@MainActivity, // activityViewModel(): shared by every screen
+            ) {
                 ViewAppTheme {
                     Surface(Modifier.fillMaxSize()) {
 

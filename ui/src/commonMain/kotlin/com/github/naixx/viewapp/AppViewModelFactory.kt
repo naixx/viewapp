@@ -12,8 +12,8 @@ import kotlin.reflect.KClass
 /**
  * The app's one `ViewModelProvider.Factory`: every view model is a `@ViewModelKey @ContributesIntoMap(AppScope)` entry
  * in these maps (the per-clip `TimelapseViewModel.Factory` in the manual-assisted one), and `metroViewModel()` /
- * `assistedMetroViewModel()` reach it through `LocalMetroViewModelFactory`, which the Activity provides. Metro ships only
- * the abstract class because the maps are keyed by the app's scope. Moves to `:ui` with the screens (step 9).
+ * `assistedMetroViewModel()` reach it through `LocalMetroViewModelFactory`, which the shell provides. Metro ships only
+ * the abstract class because the maps are keyed by the app's scope; each shell's graph extends `ViewModelGraph`.
  */
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class)

@@ -10,6 +10,7 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.core.screen.ScreenKey
 import cafe.adriel.voyager.navigator.CurrentScreen
 import cafe.adriel.voyager.navigator.Navigator
+import com.github.naixx.viewapp.utils.LocalActivityViewModelStoreOwner
 import com.github.naixx.viewapp.utils.activityViewModel
 import com.github.naixx.viewapp.utils.screenViewModel
 import dev.zacsweers.metrox.viewmodel.LocalMetroViewModelFactory
@@ -26,7 +27,7 @@ import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 /**
- * The two view-model scopes the screens name (`utils/ViewModels.kt`): `activityViewModel()` is one instance for the
+ * The two view-model scopes the screens name (`:ui`, `utils/ViewModels.kt`): `activityViewModel()` is one instance for the
  * whole Activity, `screenViewModel()` is one per Voyager screen and is cleared when the screen leaves the navigator
  * (what `rememberScreenModel` used to give). The factory is a stub, so this is about the scopes, not the app graph
  * (`AppGraphTest` covers that).
@@ -79,7 +80,10 @@ class ViewModelScopesTest {
     /** Shows [first], then pushes [second] on top of it. */
     private fun showBoth() {
         compose.setContent {
-            CompositionLocalProvider(LocalMetroViewModelFactory provides factory) {
+            CompositionLocalProvider(
+                LocalMetroViewModelFactory provides factory,
+                LocalActivityViewModelStoreOwner provides compose.activity, // what MainActivity does
+            ) {
                 Navigator(first) { nav ->
                     navigator = nav
                     CurrentScreen()
