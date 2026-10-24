@@ -27,7 +27,7 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            implementation(libs.kmp.libs.core)
+            api(libs.kmp.libs.core) // SerializableInterop is a supertype of Clip
             implementation(libs.kmp.libs.logger)
 
             implementation(libs.ktorfit)

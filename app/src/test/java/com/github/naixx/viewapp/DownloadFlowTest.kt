@@ -3,7 +3,6 @@ package com.github.naixx.viewapp
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.github.naixx.viewapp.encoding.VideoExportRepository
 import com.github.naixx.viewapp.ui.TimelapseViewModel
 import com.github.naixx.viewapp.ui.components.sampleClipInfo
 import com.github.naixx.viewapp.utils.EventBus
@@ -44,7 +43,6 @@ class DownloadFlowTest {
     private val dispatcher = StandardTestDispatcher()
 
     private val viewApi = mockk<ViewApi>(relaxed = true)
-    private val exportRepo = mockk<VideoExportRepository>(relaxed = true)
 
     private lateinit var context: Context
     private lateinit var frameStore: FileSystemFrameStore
@@ -82,7 +80,7 @@ class DownloadFlowTest {
 
     // The same wiring the graph's TimelapseViewModel.Factory does, with the test's doubles.
     private fun vm(frames: Int, name: String = "tl-1") = TimelapseViewModel(
-        clip(frames, name), dispatcher, frameStore, deviceState, exportRepo, MemoryClipRepository(), viewApi,
+        clip(frames, name), dispatcher, frameStore, deviceState, MemoryClipRepository(), viewApi,
     )
 
     private fun clip(frames: Int, name: String = "tl-1") =

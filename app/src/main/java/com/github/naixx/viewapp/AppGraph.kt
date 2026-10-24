@@ -4,7 +4,6 @@ import android.app.Application
 import android.content.Context
 import com.github.naixx.viewapp.encoding.VideoEncoderFactory
 import com.github.naixx.viewapp.encoding.VideoEncoderFactoryImpl
-import com.github.naixx.viewapp.encoding.VideoExportRepository
 import com.github.naixx.viewapp.encoding.VideoExportRepositoryImpl
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.BindingContainer
@@ -16,6 +15,8 @@ import dev.zacsweers.metrox.android.MetroAppComponentProviders
 import dev.zacsweers.metrox.viewmodel.ViewModelGraph
 import github.naixx.core.FileSystemFrameStore
 import github.naixx.core.FrameStore
+import github.naixx.core.VideoExportRepository
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.io.files.Path
 
@@ -54,8 +55,9 @@ object AppBindings {
     fun videoEncoderFactory(context: Context, frames: FrameStore): VideoEncoderFactory =
         VideoEncoderFactoryImpl(context, frames)
 
+    /** Nullable on purpose: the key of `TimelapseViewModel.export` (Metro keys include nullability); `:web` binds nothing. */
     @Provides
     @SingleIn(AppScope::class)
-    fun videoExportRepository(context: Context, encoders: VideoEncoderFactory): VideoExportRepository =
-        VideoExportRepositoryImpl(context, encoders)
+    fun videoExportRepository(context: Context, encoders: VideoEncoderFactory, scope: CoroutineScope): VideoExportRepository? =
+        VideoExportRepositoryImpl(context, encoders, scope)
 }

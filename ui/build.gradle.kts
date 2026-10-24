@@ -38,6 +38,7 @@ kotlin {
             api(libs.coil.compose) // images everywhere in the shared UI; the frames reach it through FrameFetcher
             api(libs.sonner) // toasts: EventBus events carry its ToastType
             api(libs.metrox.viewmodel.compose) // view models: @ViewModelKey map, AppViewModelFactory, metroViewModel()
+            implementation(compose.components.resources) // ByteArray.decodeToImageBitmap for the frame histogram
             implementation(libs.kmp.libs.logger)
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.compose.ui.tooling.preview) // the multiplatform androidx.compose.ui.tooling.preview.Preview

@@ -2,7 +2,6 @@ package github.naixx.network
 
 import de.jensklingenberg.ktorfit.http.*
 import github.naixx.network.internal.AddressResponseSerializer
-import github.naixx.network.internal.ioDispatcher
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get

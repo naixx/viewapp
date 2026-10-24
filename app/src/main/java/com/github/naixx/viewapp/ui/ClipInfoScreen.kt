@@ -1,7 +1,5 @@
 package com.github.naixx.viewapp.ui
 
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -45,7 +43,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -53,7 +50,6 @@ import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
-import com.github.naixx.viewapp.encoding.EncodingResult
 import com.github.naixx.viewapp.ui.components.AppBarWithBack
 import com.github.naixx.viewapp.ui.components.FrameHistogramView
 import com.github.naixx.viewapp.ui.components.OnConnectedEffect
@@ -63,10 +59,12 @@ import com.github.naixx.viewapp.ui.components.sampleClipInfo
 import com.github.naixx.viewapp.utils.EventBus
 import com.github.naixx.viewapp.utils.activityViewModel
 import dev.zacsweers.metrox.viewmodel.assistedMetroViewModel
+import github.naixx.core.ExportResult
 import github.naixx.network.Clip
 import github.naixx.network.TimelapseClipInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
@@ -83,12 +81,10 @@ class ClipInfoScreen(val clip: Clip) : Screen {
         val conn by mainViewModel.connectionState.collectAsState()
         val storedClipInfo by timelapseViewModel.clipInfo.collectAsState()
         val navigator = LocalNavigator.currentOrThrow
-        val context = LocalContext.current
         val downloadedFrames by timelapseViewModel.downloadedFrames.collectAsState()
         val currentFrameIndex by timelapseViewModel.currentFrameIndex.collectAsState()
         val isPlaying by timelapseViewModel.isPlaying.collectAsState()
         val isDownloading by timelapseViewModel.isDownloading.collectAsState()
-        val exportProgress by timelapseViewModel.exportProgress.collectAsState()
         val intervalStatus by mainViewModel.intervalometerStatus.collectAsState()
 
         // "go live" only has meaning while this very clip is the time-lapse currently being captured.
@@ -110,7 +106,6 @@ class ClipInfoScreen(val clip: Clip) : Screen {
 
         val scope = rememberCoroutineScope()
         var cacheSize by remember { mutableStateOf<String?>(null) }
-        var lastExportedUri by remember { mutableStateOf<Uri?>(null) }
 
         LaunchedEffect(Unit) {
             scope.launch(Dispatchers.IO) {
@@ -151,27 +146,21 @@ class ClipInfoScreen(val clip: Clip) : Screen {
             }
         }
 
-        LaunchedEffect(Unit) {
-            timelapseViewModel.exportResult.collect { result ->
-                when (result) {
-                    is EncodingResult.Success  -> {
-                        EventBus.success("Video exported successfully")
-                        lastExportedUri = result.uri
-                    }
+        OnConnectedEffect(conn) {
+            timelapseViewModel.clipInfo()
+        }
 
-                    is EncodingResult.Error    -> {
-                        EventBus.success("Export failed: ${result.message}")
-                    }
-
-                    is EncodingResult.Canceled -> {
-                        EventBus.info("Export was canceled")
+        timelapseViewModel.export?.let { export ->
+            LaunchedEffect(export) {
+                export.result.drop(1).collect { result -> // the current value is an earlier export's
+                    when (result) {
+                        is ExportResult.Success -> EventBus.success("Video exported successfully")
+                        is ExportResult.Error   -> EventBus.error("Export failed: ${result.message}")
+                        ExportResult.Canceled   -> EventBus.info("Export was canceled")
+                        null                    -> Unit
                     }
                 }
             }
-        }
-
-        OnConnectedEffect(conn) {
-            timelapseViewModel.clipInfo()
         }
 
         Column(
@@ -227,18 +216,18 @@ class ClipInfoScreen(val clip: Clip) : Screen {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            if (frames.isNotEmpty()) {
-                ExportControls(
-                    exportProgress = exportProgress,
-                    lastExportedUri = lastExportedUri,
-                    onExport = { timelapseViewModel.exportVideo() },
-                    onCancelExport = { timelapseViewModel.cancelExport() },
-                    onOpenVideo = { uri ->
-                        val intent = Intent(Intent.ACTION_VIEW)
-                        intent.setDataAndType(uri, "video/mp4")
-                        context.startActivity(intent)
-                    }
-                )
+            timelapseViewModel.export?.let { export ->
+                if (frames.isNotEmpty()) {
+                    val exportProgress by export.progress.collectAsState()
+                    val lastExport by export.result.collectAsState()
+                    ExportControls(
+                        exportProgress = exportProgress,
+                        lastExported = (lastExport as? ExportResult.Success)?.takeIf { it.clip == clip.name },
+                        onExport = { export.export(clip.name, frames) },
+                        onCancelExport = { export.cancel() },
+                        onOpenVideo = { export.open(it) },
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -334,10 +323,10 @@ fun PlayerControls(
 @Composable
 fun ExportControls(
     exportProgress: Float,
-    lastExportedUri: Uri?,
+    lastExported: ExportResult.Success?,
     onExport: () -> Unit,
     onCancelExport: () -> Unit,
-    onOpenVideo: (Uri) -> Unit
+    onOpenVideo: (ExportResult.Success) -> Unit
 ) {
     Row(
         modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth(),
@@ -371,12 +360,12 @@ fun ExportControls(
                 onExport()
             }
             Spacer(modifier = Modifier.size(4.dp))
-            if (lastExportedUri != null) {
+            if (lastExported != null) {
                 VButton(
                     text = "Open Video",
                     imageVector = Icons.Outlined.OpenInNew
                 ) {
-                    onOpenVideo(lastExportedUri)
+                    onOpenVideo(lastExported)
                 }
             }
         }
@@ -570,14 +559,14 @@ fun ExportControlsPreview() {
         Column {
             ExportControls(
                 exportProgress = 0.35f,
-                lastExportedUri = null,
+                lastExported = null,
                 onExport = {},
                 onCancelExport = {},
                 onOpenVideo = {}
             )
             ExportControls(
                 exportProgress = 0.0f,
-                lastExportedUri = null,
+                lastExported = null,
                 onExport = {},
                 onCancelExport = {},
                 onOpenVideo = {}

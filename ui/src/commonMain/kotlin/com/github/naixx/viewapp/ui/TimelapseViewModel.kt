@@ -1,9 +1,7 @@
 package com.github.naixx.viewapp.ui
 
 import androidx.lifecycle.*
-import com.github.naixx.compose.*
 import com.github.naixx.logger.LL
-import com.github.naixx.viewapp.encoding.*
 import com.github.naixx.viewapp.utils.EventBus
 import com.github.naixx.viewapp.utils.lumaHistogram
 import dev.zacsweers.metro.AppScope
@@ -18,25 +16,25 @@ import github.naixx.core.DeviceState
 import github.naixx.core.DownloadResult
 import github.naixx.core.FrameStore
 import github.naixx.core.FrameDownloader
+import github.naixx.core.VideoExportRepository
 import github.naixx.network.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
-import java.util.concurrent.ConcurrentHashMap
 
 /**
- * One clip's frames on this device: what is cached, the download, playback position, the histogram of a frame and
- * the MP4 export. Frames live in the [FrameStore]; a running time-lapse's frames arrive through
- * [DeviceState.frameWritten]. Created per clip through [Factory].
+ * One clip's frames on this device: what is cached, the download, playback position and the histogram of a frame.
+ * Frames live in the [FrameStore]; a running time-lapse's frames arrive through [DeviceState.frameWritten]. Created
+ * per clip through [Factory]. The MP4 export is the shell's: [export] is there on Android and null on the web.
  */
 @AssistedInject
 class TimelapseViewModel(
     @Assisted private val clip: Clip,
-    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val ioDispatcher: CoroutineDispatcher = github.naixx.network.ioDispatcher, // tests pass their own
     private val frames: FrameStore,
     private val device: DeviceState,
-    private val videoExportRepository: VideoExportRepository,
     private val clips: ClipRepository,
     private val api: ViewApi,
+    val export: VideoExportRepository? = null, // optional dependency: :app binds it (as VideoExportRepository?), :web does not
 ) : ViewModel() {
 
     /** Per clip, from a composable: `assistedMetroViewModel<TimelapseViewModel, Factory>(key = clip.name) { create(clip) }`. */
@@ -56,15 +54,10 @@ class TimelapseViewModel(
     val isDownloading: StateFlow<Boolean>
         field = MutableStateFlow(false)
 
-    val exportProgress: MutableStateFlow<Float> = MutableStateFlow(0f)
-
-    val exportResult = MutableSharedFlow<EncodingResult>(extraBufferCapacity = 1)
-
     private var downloadJob: Job? = null
-    private var exportJob: Job? = null
 
-    /** Frame histograms by frame number; ~1 KB each, computed once so playback doesn't redo them. */
-    private val histograms = ConcurrentHashMap<Int, List<Int>>()
+    /** Frame histograms by frame number; ~1 KB each, computed once so playback doesn't redo them. Written by the caller. */
+    private val histograms = HashMap<Int, List<Int>>()
 
     val clipInfo: StateFlow<TimelapseClipInfo?> = clips
         .clipInfo(clip.name)
@@ -110,18 +103,15 @@ class TimelapseViewModel(
         if (followLatest) currentFrameIndex.value = frameIndex
     }
 
-    /**
-     * Get information about the current clip
-     */
-    suspend fun clipInfo(): UiState<TimelapseClipInfo?> = catching {
-        val info = api.clipInfo(clip.name)
-
-        // Remember the fetched info
-        viewModelScope.launch {
-            clips.saveClipInfo(info)
+    /** Fetches the clip's info from the device and stores it (the [clipInfo] flow); a failure is logged, the stored copy stays. */
+    suspend fun clipInfo() {
+        try {
+            clips.saveClipInfo(api.clipInfo(clip.name))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            LL.e("clipInfo: ${e.message}")
         }
-
-        info
     }
 
     /**
@@ -209,8 +199,8 @@ class TimelapseViewModel(
      */
     suspend fun histogram(frameIndex: Int): List<Int>? =
         histograms[frameIndex] ?: withContext(ioDispatcher) {
-            frames.read(clip.name, frameIndex)?.let(::lumaHistogram)?.also { histograms[frameIndex] = it }
-        }
+            frames.read(clip.name, frameIndex)?.let(::lumaHistogram)
+        }?.also { histograms[frameIndex] = it }
 
     /**
      * Delete all cached frames for this clip
@@ -237,49 +227,8 @@ class TimelapseViewModel(
      */
     suspend fun getCacheSize(): Long = frames.size(clip.name)
 
-    fun exportVideo(fps: Int = 30) {
-        if (downloadedFrames.value.isEmpty() || exportJob?.isActive == true) return
-
-        exportJob = viewModelScope.launch {
-            try {
-                val frameIndices = downloadedFrames.value
-                if (frameIndices.isEmpty()) {
-                    exportResult.emit(EncodingResult.Error("No frames downloaded"))
-                    return@launch
-                }
-
-                val outputFileName = "${clip.name}_${System.currentTimeMillis()}.mp4"
-
-                val progressJob = launch {
-                    videoExportRepository.progress.collect { progress ->
-                        exportProgress.value = progress
-                    }
-                }
-
-                videoExportRepository.exportVideo(clip.name, frameIndices, outputFileName, fps).let { result ->
-                    progressJob.cancel()
-                    exportResult.emit(result)
-                }
-            } catch (e: Exception) {
-                LL.e("Export error: ${e.message}")
-                exportResult.emit(EncodingResult.Error("Export failed: ${e.message}", e))
-            } finally {
-                exportJob = null
-            }
-        }
-    }
-
-    fun cancelExport() {
-        exportJob?.cancel()
-        exportJob = null
-        videoExportRepository.cancelExport()
-        exportProgress.value = 0f
-    }
-
     override fun onCleared() {
         super.onCleared()
         downloadJob?.cancel()
-        exportJob?.cancel()
-        videoExportRepository.cancelExport()
     }
 }

@@ -1,4 +1,5 @@
-import github.naixx.core.lumaHistogram
+package com.github.naixx.viewapp.utils
+
 import kotlin.test.Test
 import kotlin.test.assertEquals
 

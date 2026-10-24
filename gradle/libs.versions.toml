@@ -79,7 +79,6 @@ jetbrains-kotlin-test-junit = { module = "org.jetbrains.kotlin:kotlin-test-junit
 kmp-libs-core = { module = "com.github.naixx.kmp-libs:core", version.ref = "kmpLibs" }
 kmp-libs-logger = { module = "com.github.naixx.kmp-libs:logger", version.ref = "kmpLibs" }
 kmp-libs-prefs = { module = "com.github.naixx.kmp-libs:prefs", version.ref = "kmpLibs" }
-kmp-libs-compose = { module = "com.github.naixx.kmp-libs:compose", version.ref = "kmpLibs" } # UiState/catching; Android-only artifact, to be replaced when the view models move to :ui
 
 room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
 room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
