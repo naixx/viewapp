@@ -95,6 +95,7 @@ androidComponents {
 dependencies {
     implementation(project(":network"))
     implementation(project(":core"))
+    implementation(project(":ui")) // theme, toasts, formatting, shared components (step 9)
     implementation(project(":db"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
@@ -114,12 +115,11 @@ dependencies {
 
     implementation(libs.kmp.libs.logger)
     implementation(libs.kmp.libs.prefs)
-    implementation(libs.kmp.libs.compose)
+    implementation(libs.kmp.libs.compose) // UiState / catching in TimelapseViewModel (Android-only; goes when the view models move to :ui)
     implementation(libs.multiplatform.settings.no.arg)
     implementation(libs.multiplatform.settings.observable)
     implementation(libs.multiplatform.settings.serialization)
     debugImplementation(libs.slf4j.simple)
-    implementation(libs.sonner)
 
     implementation(libs.kotlinx.datetime)
 

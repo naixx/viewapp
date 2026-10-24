@@ -1,9 +1,7 @@
 package com.github.naixx.viewapp.utils
 
-import java.text.DecimalFormatSymbols
-
 fun String.removeTrailingZeros(): String {
-    val decimal = DecimalFormatSymbols.getInstance().decimalSeparator.toString()
+    val decimal = decimalSeparator().toString()
     val escapedDecimal = Regex.escape(decimal)
 
     return replace(
@@ -14,4 +12,8 @@ fun String.removeTrailingZeros(): String {
         .replace(Regex("$escapedDecimal$"), "")                    // Lone decimal at end "12." → "12"
 }
 
-fun Number.formatted(digits: Int = 2): String = "%,.${digits}f".format(this.toDouble()).removeTrailingZeros()
+/** The number in the current locale with grouping and up to [digits] decimals, trailing zeros dropped. */
+expect fun Number.formatted(digits: Int = 2): String
+
+/** The current locale's decimal separator (the one [formatted] uses). */
+internal expect fun decimalSeparator(): Char

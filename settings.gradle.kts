@@ -44,5 +44,6 @@ rootProject.name = "ViewApp"
 include(":app")
 include(":network")
 include(":core")
+include(":ui")
 include(":db")
 include(":web")

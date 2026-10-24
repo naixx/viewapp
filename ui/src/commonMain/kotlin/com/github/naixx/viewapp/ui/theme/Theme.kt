@@ -1,21 +1,17 @@
 package com.github.naixx.viewapp.ui.theme
 
-import android.app.Activity
-import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
     primary = Purple80,
     secondary = PurpleGrey80,
     tertiary = Pink80
 )
+
 private val LightColorScheme = lightColorScheme(
     primary = Purple40,
     secondary = PurpleGrey40,
@@ -34,19 +30,12 @@ private val LightColorScheme = lightColorScheme(
 @Composable
 fun ViewAppTheme(
     darkTheme: Boolean = true,
-    // Dynamic color is available on Android 12+
+    // The platform's own palette where it has one (Android 12+); the fixed schemes elsewhere.
     dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-
-        darkTheme                                                      -> DarkColorScheme
-        else                                                           -> LightColorScheme
-    }
+    val colorScheme = (if (dynamicColor) dynamicColorScheme(darkTheme) else null)
+        ?: if (darkTheme) DarkColorScheme else LightColorScheme
 
     MaterialTheme(
         colorScheme = colorScheme,
@@ -54,3 +43,7 @@ fun ViewAppTheme(
         content = content
     )
 }
+
+/** The platform's dynamic palette ("Material You" on Android 12+), or null where there is none. */
+@Composable
+internal expect fun dynamicColorScheme(darkTheme: Boolean): ColorScheme?

@@ -26,6 +26,7 @@ kotlin {
     sourceSets {
         wasmJsMain.dependencies {
             implementation(project(":core")) // brings :network as api
+            implementation(project(":ui"))
 
             implementation(compose.runtime)
             implementation(compose.foundation)
