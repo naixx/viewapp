@@ -43,7 +43,7 @@ qrKit = "2.0.0"
 reorderable = "2.3.3"
 robolectric = "4.17" # ASM 9.10: unit tests run on the IDE's JBR 25 (4.12.2 = ASM 9.7, Java <= 23); SDK 36 android-all
 slf4jSimple = "2.0.16"
-sonner = "0.3.8"
+sonner = "0.4.0" # built against CMP 1.11.1; 0.3.8 (CMP 1.6) hit an IrLinkageError on wasm at the first toast and took the whole composition down
 startupRuntime = "1.2.0"
 statelyCommon = "2.0.7"
 voyager = "2.2.21-1.10.3" # Kotlin-CMP coupled versions since 2.x; built against lifecycle 2.10, which voyager-lifecycle-kmp needs (1.1.0-beta0x linked against the old core-bundle savedstate and failed at runtime on wasm)
@@ -53,7 +53,7 @@ composeBom = "2025.02.00"
 
 metro = "1.4.5"
 
-kotlinxCoroutinesAndroid = "1.9.0"
+kotlinxCoroutinesAndroid = "1.11.0"
 kotlinxSerialization = "1.11.0"
 kotlinxIo = "0.5.4" # the version Ktor 3.0.3 brings; keep them equal
 ktorVersion = "3.0.3"
@@ -148,7 +148,7 @@ coil-network = { module = "io.coil-kt.coil3:coil-network-ktor3", version.ref = "
 
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinxCoroutinesAndroid" }
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinxCoroutinesAndroid" }
-kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version = "1.8.1" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinxCoroutinesAndroid" }
 ktor-client-content-negotiation = { module = "io.ktor:ktor-client-content-negotiation", version.ref = "ktorVersion" }
 ktor-client-logging = { module = "io.ktor:ktor-client-logging", version.ref = "ktorVersion" }
 ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktorVersion" }
