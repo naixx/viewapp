@@ -9,7 +9,8 @@ import java.io.File
 
 interface VideoExportRepository {
     val progress: StateFlow<Float>
-    suspend fun exportVideo(frames: List<File>, outputFileName: String, fps: Int = VideoEncoder.DEFAULT_FPS): EncodingResult
+    /** Encodes [frames] (frame numbers of [clip] in the FrameStore) into `cacheDir/export/[outputFileName]`. */
+    suspend fun exportVideo(clip: String, frames: List<Int>, outputFileName: String, fps: Int = VideoEncoder.DEFAULT_FPS): EncodingResult
     fun cancelExport()
 }
 
@@ -23,7 +24,7 @@ class VideoExportRepositoryImpl(
 
     private var currentEncoder: VideoEncoder? = null
 
-    override suspend fun exportVideo(frames: List<File>, outputFileName: String, fps: Int): EncodingResult {
+    override suspend fun exportVideo(clip: String, frames: List<Int>, outputFileName: String, fps: Int): EncodingResult {
         if (frames.isEmpty()) {
             return EncodingResult.Error("No frames to export")
         }
@@ -45,7 +46,7 @@ class VideoExportRepositoryImpl(
 
         try {
             // Start encoding
-            val result = encoder.encodeFramesToVideo(frames, outputPath, fps) { progress ->
+            val result = encoder.encodeFramesToVideo(clip, frames, outputPath, fps) { progress ->
                 _progress.value = progress
             }
 

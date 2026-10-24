@@ -8,7 +8,6 @@ import com.github.naixx.viewapp.encoding.VideoExportRepository
 import com.github.naixx.viewapp.encoding.VideoExportRepositoryImpl
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.BindingContainer
-import dev.zacsweers.metro.Binds
 import dev.zacsweers.metro.ContributesTo
 import dev.zacsweers.metro.DependencyGraph
 import dev.zacsweers.metro.Provides
@@ -31,10 +30,6 @@ import kotlinx.io.files.Path
 @DependencyGraph(AppScope::class)
 interface AppGraph : MetroAppComponentProviders, ViewModelGraph {
 
-    // The concrete store is exposed too: the player and the exporter still want java.io.Files from its paths.
-    @Binds
-    val FileSystemFrameStore.bind: FrameStore
-
     @DependencyGraph.Factory
     fun interface Factory {
 
@@ -51,12 +46,13 @@ object AppBindings {
 
     @Provides
     @SingleIn(AppScope::class)
-    fun frameStore(application: Application): FileSystemFrameStore =
+    fun frameStore(application: Application): FrameStore =
         FileSystemFrameStore(Path(application.filesDir.path), Dispatchers.IO)
 
     @Provides
     @SingleIn(AppScope::class)
-    fun videoEncoderFactory(context: Context): VideoEncoderFactory = VideoEncoderFactoryImpl(context)
+    fun videoEncoderFactory(context: Context, frames: FrameStore): VideoEncoderFactory =
+        VideoEncoderFactoryImpl(context, frames)
 
     @Provides
     @SingleIn(AppScope::class)

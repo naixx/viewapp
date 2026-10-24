@@ -1,6 +1,5 @@
 package com.github.naixx.viewapp.ui
 
-import android.content.Context
 import androidx.lifecycle.*
 import com.github.naixx.compose.*
 import com.github.naixx.logger.LL
@@ -17,26 +16,23 @@ import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactoryKey
 import github.naixx.core.ClipRepository
 import github.naixx.core.DeviceState
 import github.naixx.core.DownloadResult
-import github.naixx.core.FileSystemFrameStore
+import github.naixx.core.FrameStore
 import github.naixx.core.FrameDownloader
 import github.naixx.network.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
-import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
 /**
  * One clip's frames on this device: what is cached, the download, playback position, the histogram of a frame and
- * the MP4 export. Frames live in the [FileSystemFrameStore]; a running time-lapse's frames arrive through
- * [DeviceState.frameWritten]. The `context` parameters are kept for the screens until they move to the shared UI.
- * Created per clip through [Factory].
+ * the MP4 export. Frames live in the [FrameStore]; a running time-lapse's frames arrive through
+ * [DeviceState.frameWritten]. Created per clip through [Factory].
  */
 @AssistedInject
 class TimelapseViewModel(
     @Assisted private val clip: Clip,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-    // The concrete store: the player and the exporter still want java.io.Files (see getFrameFile) until step 10.
-    private val frames: FileSystemFrameStore,
+    private val frames: FrameStore,
     private val device: DeviceState,
     private val videoExportRepository: VideoExportRepository,
     private val clips: ClipRepository,
@@ -90,7 +86,7 @@ class TimelapseViewModel(
      * Checks for existing frames without starting download
      * Returns Pair(downloadedCount, totalFrames)
      */
-    suspend fun checkExistingFrames(context: Context, totalFrames: Int): Pair<Int, Int> {
+    suspend fun checkExistingFrames(totalFrames: Int): Pair<Int, Int> {
         val downloadedIndices = frames.indices(clip.name).filter { it in 1..totalFrames }
 
         // Update the state flows with the found frames
@@ -131,7 +127,7 @@ class TimelapseViewModel(
     /**
      * Download all frames for the current clip
      */
-    fun downloadFrames(context: Context, connectionState: ConnectionState?) {
+    fun downloadFrames(connectionState: ConnectionState?) {
         LL.d("downloading $connectionState " + isPlaying.value + isDownloading.value)
         if (isPlaying.value || isDownloading.value) return
 
@@ -208,16 +204,10 @@ class TimelapseViewModel(
     }
 
     /**
-     * Get the file for a specific frame if it exists (the exporter wants java.io.Files)
-     */
-    fun getFrameFile(context: Context, frameIndex: Int): File? =
-        File(frames.path(clip.name, frameIndex).toString()).takeIf { it.exists() }
-
-    /**
      * Luma histogram of a cached frame, computed from its JPEG (the VIEW's `histogram` message carries no
      * frame number, exists only for auto-ramped frames, and never for frames downloaded afterwards).
      */
-    suspend fun histogram(context: Context, frameIndex: Int): List<Int>? =
+    suspend fun histogram(frameIndex: Int): List<Int>? =
         histograms[frameIndex] ?: withContext(ioDispatcher) {
             frames.read(clip.name, frameIndex)?.let(::lumaHistogram)?.also { histograms[frameIndex] = it }
         }
@@ -225,7 +215,7 @@ class TimelapseViewModel(
     /**
      * Delete all cached frames for this clip
      */
-    fun deleteCache(context: Context) {
+    fun deleteCache() {
         // First stop any ongoing download
         stopDownload()
 
@@ -245,9 +235,9 @@ class TimelapseViewModel(
     /**
      * Gets the size of the cache for this clip
      */
-    suspend fun getCacheSize(context: Context): Long = frames.size(clip.name)
+    suspend fun getCacheSize(): Long = frames.size(clip.name)
 
-    fun exportVideo(context: Context, fps: Int = 30) {
+    fun exportVideo(fps: Int = 30) {
         if (downloadedFrames.value.isEmpty() || exportJob?.isActive == true) return
 
         exportJob = viewModelScope.launch {
@@ -255,12 +245,6 @@ class TimelapseViewModel(
                 val frameIndices = downloadedFrames.value
                 if (frameIndices.isEmpty()) {
                     exportResult.emit(EncodingResult.Error("No frames downloaded"))
-                    return@launch
-                }
-
-                val frameFiles = frameIndices.mapNotNull { index -> getFrameFile(context, index) }
-                if (frameFiles.isEmpty()) {
-                    exportResult.emit(EncodingResult.Error("No frame files found"))
                     return@launch
                 }
 
@@ -272,7 +256,7 @@ class TimelapseViewModel(
                     }
                 }
 
-                videoExportRepository.exportVideo(frameFiles, outputFileName, fps).let { result ->
+                videoExportRepository.exportVideo(clip.name, frameIndices, outputFileName, fps).let { result ->
                     progressJob.cancel()
                     exportResult.emit(result)
                 }

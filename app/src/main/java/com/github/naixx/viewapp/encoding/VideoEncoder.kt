@@ -1,7 +1,6 @@
 package com.github.naixx.viewapp.encoding
 
 import android.net.Uri
-import java.io.File
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -9,8 +8,10 @@ interface VideoEncoder {
     val progress: StateFlow<Float>
     val result: SharedFlow<EncodingResult>
 
+    /** Encodes [frames] (frame numbers of [clip], read from the FrameStore one at a time) into [outputFilePath]. */
     suspend fun encodeFramesToVideo(
-        frames: List<File>,
+        clip: String,
+        frames: List<Int>,
         outputFilePath: String,
         fps: Int,
         onProgressUpdate: suspend (Float) -> Unit

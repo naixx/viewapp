@@ -114,10 +114,10 @@ class ClipInfoScreen(val clip: Clip) : Screen {
 
         LaunchedEffect(Unit) {
             scope.launch(Dispatchers.IO) {
-                timelapseViewModel.checkExistingFrames(context, clip.frames)
+                timelapseViewModel.checkExistingFrames(clip.frames)
                 val existingFrames = timelapseViewModel.downloadedFrames.value
                 if (existingFrames.isNotEmpty()) {
-                    val size = timelapseViewModel.getCacheSize(context)
+                    val size = timelapseViewModel.getCacheSize()
                     cacheSize = formatFileSize(size)
                 }
             }
@@ -125,7 +125,7 @@ class ClipInfoScreen(val clip: Clip) : Screen {
 
         LaunchedEffect(frames.size) {
             if (frames.isNotEmpty()) {
-                val size = timelapseViewModel.getCacheSize(context)
+                val size = timelapseViewModel.getCacheSize()
                 cacheSize = formatFileSize(size)
             }
         }
@@ -205,7 +205,7 @@ class ClipInfoScreen(val clip: Clip) : Screen {
             if (frames.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 FrameHistogramView(currentFrameIndex, Modifier.padding(horizontal = 16.dp)) {
-                    timelapseViewModel.histogram(context, it)
+                    timelapseViewModel.histogram(it)
                 }
             }
 
@@ -221,7 +221,7 @@ class ClipInfoScreen(val clip: Clip) : Screen {
                 progress = progress,
                 frames = frames,
                 isDownloading = isDownloading,
-                onDownload = { timelapseViewModel.downloadFrames(context, conn) },
+                onDownload = { timelapseViewModel.downloadFrames(conn) },
                 onCancelDownload = { timelapseViewModel.stopDownload() }
             )
 
@@ -231,7 +231,7 @@ class ClipInfoScreen(val clip: Clip) : Screen {
                 ExportControls(
                     exportProgress = exportProgress,
                     lastExportedUri = lastExportedUri,
-                    onExport = { timelapseViewModel.exportVideo(context) },
+                    onExport = { timelapseViewModel.exportVideo() },
                     onCancelExport = { timelapseViewModel.cancelExport() },
                     onOpenVideo = { uri ->
                         val intent = Intent(Intent.ACTION_VIEW)
@@ -261,7 +261,7 @@ class ClipInfoScreen(val clip: Clip) : Screen {
                 CacheManagementCard(
                     cacheSize = cacheSize,
                     onDeleteCache = {
-                        timelapseViewModel.deleteCache(context)
+                        timelapseViewModel.deleteCache()
                         cacheSize = null
                     }
                 )

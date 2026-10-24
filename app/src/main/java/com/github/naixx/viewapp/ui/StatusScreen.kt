@@ -164,11 +164,10 @@ class StatusScreen : Screen {
             // would be ignored, leaving the old clip's directory wired up for reads/writes.
             assistedMetroViewModel<TimelapseViewModel, TimelapseViewModel.Factory>(key = tl.name) { create(tl) }
         }
-        val context = LocalContext.current
 
         LaunchedEffect(clip) {
             clip?.let {
-                timelapseViewModel?.checkExistingFrames(context, it.frames)
+                timelapseViewModel?.checkExistingFrames(it.frames)
             }
         }
 
@@ -197,7 +196,7 @@ class StatusScreen : Screen {
         // /clipinfo answers an empty 200 and the download failed right after every start.
         if (conn is ConnectionState.Connected && timelapseViewModel != null && clip.frames > 0)
             LaunchedEffect(c) {
-                timelapseViewModel.downloadFrames(context, conn)
+                timelapseViewModel.downloadFrames(conn)
             }
 
 
@@ -280,7 +279,7 @@ class StatusScreen : Screen {
 
                 Spacer(modifier = Modifier.height(8.dp))
                 if (timelapseViewModel != null) {
-                    FrameHistogramView(currentFrameIndex) { timelapseViewModel.histogram(context, it) }
+                    FrameHistogramView(currentFrameIndex) { timelapseViewModel.histogram(it) }
                 } else {
                     HistogramView(histogram?.histogram)
                 }

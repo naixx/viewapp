@@ -17,6 +17,7 @@ import com.github.naixx.logger.LL
 import com.github.naixx.viewapp.encoding.EncodingResult
 import com.github.naixx.viewapp.encoding.VideoEncoder
 import com.github.naixx.viewapp.encoding.VideoEncodingParameters
+import github.naixx.core.FrameStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,7 +31,8 @@ import kotlin.coroutines.coroutineContext
 import kotlin.math.roundToInt
 
 class MediaCodecEncoder(
-    private val context: Context
+    private val context: Context,
+    private val store: FrameStore,
 ) : VideoEncoder {
 
     private val _progress = MutableStateFlow(0f)
@@ -42,7 +44,8 @@ class MediaCodecEncoder(
     private var isEncodingCancelled = false
 
     override suspend fun encodeFramesToVideo(
-        frames: List<File>,
+        clip: String,
+        frames: List<Int>,
         outputFilePath: String,
         fps: Int,
         onProgressUpdate: suspend (Float) -> Unit
@@ -74,14 +77,12 @@ class MediaCodecEncoder(
                     tempVideoFile.delete()
                 }
 
-                val firstFrameFile = frames.first()
-                if (!firstFrameFile.exists()) {
-                    return@withContext EncodingResult.Error("Cannot access first frame")
-                }
+                val firstFrame = store.read(clip, frames.first())
+                    ?: return@withContext EncodingResult.Error("Cannot access first frame")
 
                 val options = BitmapFactory.Options()
                 options.inJustDecodeBounds = true
-                BitmapFactory.decodeFile(firstFrameFile.path, options)
+                BitmapFactory.decodeByteArray(firstFrame, 0, firstFrame.size, options)
                 val width = options.outWidth
                 val height = options.outHeight
 
@@ -92,7 +93,7 @@ class MediaCodecEncoder(
                     frameRate = fps
                 )
 
-                val result = encodeWithMediaCodec(frames, tempVideoFile.absolutePath, encodingParams, onProgressUpdate)
+                val result = encodeWithMediaCodec(clip, frames, tempVideoFile.absolutePath, encodingParams, onProgressUpdate)
 
                 if (result is EncodingResult.Success) {
                     resolver.openOutputStream(videoUri)?.use { outputStream ->
@@ -136,7 +137,8 @@ class MediaCodecEncoder(
     }
 
     private suspend fun encodeWithMediaCodec(
-        frames: List<File>,
+        clip: String,
+        frames: List<Int>,
         outputPath: String,
         params: VideoEncodingParameters,
         onProgressUpdate: suspend (Float) -> Unit
@@ -198,15 +200,16 @@ class MediaCodecEncoder(
             val frameDurationUs = 1_000_000L / params.frameRate
             val inputSize = width * height * 3 / 2
 
-            frames.forEachIndexed { index, frameFile ->
+            frames.forEachIndexed { index, frameIndex ->
                 if (!coroutineContext.isActive || isEncodingCancelled) {
                     return EncodingResult.Canceled
                 }
 
-                if (frameFile.exists()) {
-                    val bitmap = BitmapFactory.decodeFile(frameFile.path)
+                val jpeg = store.read(clip, frameIndex)
+                if (jpeg != null) {
+                    val bitmap = BitmapFactory.decodeByteArray(jpeg, 0, jpeg.size)
                     if (bitmap == null) {
-                        LL.e("Failed to decode bitmap from file: ${frameFile.path}")
+                        LL.e("Failed to decode frame $frameIndex of $clip")
                         return@forEachIndexed
                     }
 

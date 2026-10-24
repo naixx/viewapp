@@ -108,7 +108,7 @@ class DownloadFlowTest {
         val events = recordEvents()
 
         val model = vm(frames = 5)
-        model.downloadFrames(context, ConnectionState.Disconnected)
+        model.downloadFrames(ConnectionState.Disconnected)
         advanceUntilIdle()
 
         assertFalse(model.isDownloading.value, "should not enter downloading state")
@@ -123,7 +123,7 @@ class DownloadFlowTest {
         coEvery { viewApi.download(any()) } returns byteArrayOf(0x1, 0x2)
 
         val model = vm(frames = 5)
-        model.downloadFrames(context, connected())
+        model.downloadFrames(connected())
         advanceUntilIdle()
 
         assertEquals((1..5).toList(), model.downloadedFrames.value)
@@ -142,7 +142,7 @@ class DownloadFlowTest {
         }
 
         val model = vm(frames = 5)
-        model.downloadFrames(context, connected())
+        model.downloadFrames(connected())
         advanceUntilIdle()
 
         // Only the three missing frames are fetched; the cached ones are reused.
@@ -159,7 +159,7 @@ class DownloadFlowTest {
         val events = recordEvents()
 
         val model = vm(frames = 35)
-        model.downloadFrames(context, connected())
+        model.downloadFrames(connected())
         advanceUntilIdle()
 
         assertFalse(model.isDownloading.value)
@@ -180,7 +180,7 @@ class DownloadFlowTest {
         }
 
         val model = vm(frames = 30)
-        model.downloadFrames(context, connected())
+        model.downloadFrames(connected())
         advanceUntilIdle()
 
         assertFalse(model.isDownloading.value)
@@ -194,10 +194,10 @@ class DownloadFlowTest {
         coEvery { viewApi.download(any()) } returns byteArrayOf(0x1)
 
         val model = vm(frames = 3)
-        model.downloadFrames(context, connected())
+        model.downloadFrames(connected())
         // isDownloading is set synchronously before the coroutine is launched.
         assertTrue(model.isDownloading.value)
-        model.downloadFrames(context, connected()) // must be a no-op
+        model.downloadFrames(connected()) // must be a no-op
         advanceUntilIdle()
 
         coVerify(exactly = 1) { viewApi.clipInfo(any()) }
@@ -210,7 +210,7 @@ class DownloadFlowTest {
         coEvery { viewApi.download(any()) } returns byteArrayOf(0x1)
 
         val model = vm(frames = 3)
-        model.downloadFrames(context, connected())
+        model.downloadFrames(connected())
         advanceUntilIdle()
         assertEquals(3, model.downloadedFrames.value.size)
 
