@@ -82,7 +82,6 @@ import github.naixx.network.UpdateProgram
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import java.util.Locale
 
 // Live (dynamicChange) mode options — only auto/fixed are switchable mid-run.
 private val liveRampModes = listOf(Opt("Auto Ramping", "auto"), Opt("Fixed", "fixed"))
@@ -94,29 +93,6 @@ private fun DynamicChangeEntry.toRampInfo() = RampInfo(
     startFrame = startFrame ?: 0,
     endFrame = endFrame ?: 0,
 )
-
-/**
- * The running time-lapse's camera line. When the camera drops off (powered off, cable) the device sends
- * `camera {connected:false, model:""}`, which used to read "running | unknown connected".
- */
-internal fun cameraStatusLine(statusMessage: String?, camera: ConnectedMessage): String {
-    val s = statusMessage ?: "unknown"
-    return if (camera.connected) "$s | ${camera.model.ifEmpty { "unknown" }} connected"
-    else "$s | camera disconnected"
-}
-
-/**
- * The camera's drive mode. The VIEW switches any drive mode it knows to Single before it shoots (sony.js capture),
- * so a continuous or bracketing mode is only until the next shot; one it doesn't know (UNKNOWN) it leaves alone.
- */
-internal fun driveModeLine(driveMode: String?): String? = when (driveMode) {
-    null -> null
-    "Single", "UNKNOWN" -> "Drive mode: $driveMode"
-    else -> "Drive mode: $driveMode (Single from the next shot)"
-}
-
-/** Frames so far and the clip length they make at 30 fps (it used to multiply in the interval: capture time / 30). */
-internal fun framesLine(frames: Int): String = "$frames frames (${String.format(Locale.US, "%.1f", frames / 30f)}s @30fps)"
 
 class StatusScreen : Screen {
 

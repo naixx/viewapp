@@ -5,16 +5,18 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.github.naixx.viewapp.BuildConfig
 
+/** [initialUsername] / [initialPassword] prefill the fields (the Android shell passes its BuildConfig credentials). */
 @Composable
 fun LoginDialog(
     onLogin: (String, String) -> Unit,
-    onDismiss: () -> Unit = {}
+    onDismiss: () -> Unit = {},
+    initialUsername: String = "",
+    initialPassword: String = "",
 ) {
     var openDialog by remember { mutableStateOf(true) }
-    var username by remember { mutableStateOf(BuildConfig.EMAIL) }
-    var password by remember { mutableStateOf(BuildConfig.PASSWORD) }
+    var username by remember { mutableStateOf(initialUsername) }
+    var password by remember { mutableStateOf(initialPassword) }
     var isLoading by remember { mutableStateOf(false) }
 
     if (openDialog)

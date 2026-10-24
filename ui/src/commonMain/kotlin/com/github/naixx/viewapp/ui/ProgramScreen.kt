@@ -72,7 +72,7 @@ import kotlinx.serialization.json.JsonPrimitive
 // combined Status/Program screen (mirrors the original IntervalometerPage). The running state and live
 // dynamic-change controls live in StatusScreen.
 @Composable
-internal fun ProgramEditor(
+fun ProgramEditor(
     d: ProgramDraft,
     vm: ProgramViewModel,
     settings: CameraSettings?,
@@ -144,14 +144,14 @@ private fun RampingOptionsRow(d: ProgramDraft, vm: ProgramViewModel, settings: C
 }
 
 /** The ramping options button text: the ramped parameters, plus "HL" with highlight protection on. */
-internal fun rampingSummary(d: ProgramDraft): String = d.rampParameters + if (d.highlightProtection) ", HL" else ""
+fun rampingSummary(d: ProgramDraft): String = d.rampParameters + if (d.highlightProtection) ", HL" else ""
 
 /**
  * The program's exposure limits by the camera's names, e.g. "Limits: ISO 400–6400, aperture f/1.4–f/8, shutter up to 20"".
  * The EVs follow the VIEW (`camera.js` setEv lists): ISO from isoMin up to isoMax, aperture from apertureMin
  * (widest) up to apertureMax (narrowest), shutter up to shutterMax. A value missing from the lists shows as its EV.
  */
-internal fun rampLimitsLine(d: ProgramDraft, details: CameraDetails?): String {
+fun rampLimitsLine(d: ProgramDraft, details: CameraDetails?): String {
     fun name(ev: Double?, entries: List<Pair<String, Double?>>?): String? =
         ev?.let { e -> entries?.firstOrNull { evMatches(it.second, e) }?.first ?: "EV ${e.formatted(1)}" }
 
@@ -182,7 +182,7 @@ private fun evLimitOptions(entries: List<Pair<String, Double?>>): List<Opt<Doubl
  * time-lapse: the VIEW reads luminance and highlight protection only when it starts, so they are shown, not edited.
  */
 @Composable
-internal fun RampingOptionsDialog(
+fun RampingOptionsDialog(
     d: ProgramDraft,
     details: CameraDetails?,
     live: Boolean = false,

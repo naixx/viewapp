@@ -25,6 +25,7 @@ import com.github.naixx.logger.LL
 import com.github.naixx.viewapp.ui.components.LocalSuperNavigator
 import com.github.naixx.viewapp.ui.components.frames
 import com.github.naixx.viewapp.ui.theme.ViewAppTheme
+import com.github.naixx.viewapp.BuildConfig
 import com.github.naixx.viewapp.utils.AppForeground
 import com.github.naixx.viewapp.utils.ClipMapper
 import com.github.naixx.viewapp.utils.LocalActivityViewModelStoreOwner
@@ -115,7 +116,9 @@ class MainActivity(
                             LoginDialog(
                                 onLogin = { username, password ->
                                     apiLogin(username, password)
-                                }
+                                },
+                                initialUsername = BuildConfig.EMAIL,
+                                initialPassword = BuildConfig.PASSWORD,
                             )
                         }
                     }
