@@ -48,19 +48,17 @@ fun NotificationBell(
         }
         // Mark read only when the center closes, so new (unread) items stay highlighted while open.
         DropdownMenu(expanded = open, onDismissRequest = { open = false; onRead() }) {
-            open = contentList(notifications, open, onRead, onClear)
+            NotificationList(notifications, onItem = { open = false; onRead() }, onClear = { onClear(); open = false })
         }
     }
 }
 
 @Composable
-private fun contentList(
+private fun NotificationList(
     notifications: List<AppNotification>,
-    open: Boolean,
-    onRead: () -> Unit,
-    onClear: () -> Unit
-): Boolean {
-    var open1 = open
+    onItem: () -> Unit,
+    onClear: () -> Unit,
+) {
     if (notifications.isEmpty()) {
         DropdownMenuItem(text = { Text("No notifications") }, enabled = false, onClick = {})
     } else {
@@ -79,13 +77,12 @@ private fun contentList(
                         fontWeight = if (n.read) FontWeight.Normal else FontWeight.Bold,
                     )
                 },
-                onClick = { open1 = false; onRead() },
+                onClick = onItem,
             )
             HorizontalDivider()
         }
-        DropdownMenuItem(text = { Text("Clear all") }, onClick = { onClear(); open1 = false })
+        DropdownMenuItem(text = { Text("Clear all") }, onClick = onClear)
     }
-    return open1
 }
 
 @Preview
@@ -99,5 +96,5 @@ fun PreviewNotificationBell() {
 @Composable
 fun PreviewContentList() {
 
-    contentList(listOf(AppNotification(2, "asdsad", Clock.System.now())), true, {}, {})
+    NotificationList(listOf(AppNotification(2, "asdsad", Clock.System.now())), {}, {})
 }
