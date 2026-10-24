@@ -24,7 +24,7 @@ kotlin {
 
     sourceSets {
         wasmJsMain.dependencies {
-            implementation(project(":network"))
+            implementation(project(":core")) // brings :network as api
 
             implementation(compose.runtime)
             implementation(compose.foundation)
@@ -36,6 +36,7 @@ kotlin {
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.client.websockets)
             implementation(libs.napier)
+            implementation(libs.kmp.libs.logger)
         }
     }
 }

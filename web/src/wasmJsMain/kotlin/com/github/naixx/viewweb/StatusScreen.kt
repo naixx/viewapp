@@ -15,6 +15,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
+import github.naixx.core.DeviceState
 import github.naixx.network.*
 import kotlinx.browser.window
 import org.jetbrains.skia.Image as SkiaImage
@@ -23,21 +24,21 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
- * The Status page: what the Android Status tab shows, minus the live ramping editors and the program editor
- * (later steps). Running: the live thumbnail, frames, camera, exposure, interval, histogram and STOP; idle: the
- * camera, the stored program and START.
+ * The Status page over the shared [DeviceState]: what the Android Status tab shows, minus the live ramping editors
+ * and the program editor — a stand-in until the shared :ui screens land. Running: the live thumbnail, frames,
+ * camera, exposure, interval, histogram and STOP; idle: the camera, the stored program and START.
  */
 @Composable
-fun StatusScreen(connection: Connection) {
-    val state by connection.state.collectAsState()
-    val camera by connection.camera.collectAsState()
-    val settings by connection.settings.collectAsState()
-    val battery by connection.battery.collectAsState()
-    val intervalometer by connection.intervalometerStatus.collectAsState()
-    val thumbnail by connection.thumbnail.collectAsState()
-    val histogram by connection.histogram.collectAsState()
-    val program by connection.program.collectAsState()
-    val lastError by connection.lastError.collectAsState()
+fun StatusScreen(device: DeviceState) {
+    val state by device.connection.collectAsState()
+    val camera by device.camera.collectAsState()
+    val settings by device.settings.collectAsState()
+    val battery by device.battery.collectAsState()
+    val intervalometer by device.intervalometerStatus.collectAsState()
+    val thumbnail by device.thumbnail.collectAsState()
+    val histogram by device.histogram.collectAsState()
+    val program by device.program.collectAsState()
+    val notifications by device.notifications.collectAsState()
     val status = intervalometer?.status
 
     Column(
@@ -45,12 +46,13 @@ fun StatusScreen(connection: Connection) {
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         ConnectionLine(state)
-        lastError?.let { ErrorBanner(it, onDismiss = connection::clearError) }
+        // Capture errors stay as notifications until read; no toasts here until the shared UI brings them.
+        notifications.lastOrNull { !it.read }?.let { ErrorBanner(it.message, onDismiss = device::markNotificationsRead) }
 
         if (status?.running == true) {
-            RunningSection(status, camera, thumbnail, histogram, send = connection::send)
+            RunningSection(status, camera, thumbnail, histogram, send = device::send)
         } else {
-            IdleSection(state, camera, settings, program, send = connection::send)
+            IdleSection(state, camera, settings, program, send = device::send)
         }
 
         BatteryLine(camera, settings, battery)
