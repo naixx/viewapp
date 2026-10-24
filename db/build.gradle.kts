@@ -29,6 +29,7 @@ android {
 
 dependencies {
     implementation(project(":network"))
+    implementation(project(":core")) // ClipRepository, which this module implements with Room
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.koin.core)

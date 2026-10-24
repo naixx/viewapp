@@ -7,11 +7,11 @@ import com.github.naixx.logger.LL
 import com.github.naixx.viewapp.encoding.*
 import com.github.naixx.viewapp.utils.EventBus
 import com.github.naixx.viewapp.utils.lumaHistogram
+import github.naixx.core.ClipRepository
 import github.naixx.core.DeviceState
 import github.naixx.core.DownloadResult
 import github.naixx.core.FileSystemFrameStore
 import github.naixx.core.FrameDownloader
-import github.naixx.db.TimelapseClipInfoDao
 import github.naixx.network.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -48,13 +48,13 @@ class TimelapseViewModel(
     private val frames: FileSystemFrameStore by inject()
     private val device: DeviceState by inject()
     private val videoExportRepository: VideoExportRepository by inject()
-    private val timelapseClipInfoDao: TimelapseClipInfoDao by inject()
+    private val clips: ClipRepository by inject()
 
     /** Frame histograms by frame number; ~1 KB each, computed once so playback doesn't redo them. */
     private val histograms = ConcurrentHashMap<Int, List<Int>>()
 
-    val clipInfo: StateFlow<TimelapseClipInfo?> = timelapseClipInfoDao
-        .getTimelapseClipInfo(clip.name)
+    val clipInfo: StateFlow<TimelapseClipInfo?> = clips
+        .clipInfo(clip.name)
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -104,9 +104,9 @@ class TimelapseViewModel(
         val viewApi: ViewApi = get<ViewApi> { parametersOf(state.address.fromUrl) }
         val info = viewApi.clipInfo(clip.name)
 
-        // Store the fetched info in the database
+        // Remember the fetched info
         viewModelScope.launch {
-            timelapseClipInfoDao.insertTimelapseClipInfo(listOf(info))
+            clips.saveClipInfo(info)
         }
 
         info
@@ -133,7 +133,7 @@ class TimelapseViewModel(
             try {
                 val viewApi: ViewApi = get { parametersOf(state.address.fromUrl) }
                 val info = viewApi.clipInfo(clip.name).also {
-                    timelapseClipInfoDao.insertTimelapseClipInfo(listOf(it))
+                    clips.saveClipInfo(it)
                 }
                 val totalFrames = info.frames ?: return@launch
 

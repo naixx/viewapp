@@ -7,11 +7,7 @@ import com.github.naixx.viewapp.encoding.VideoExportRepository
 import com.github.naixx.viewapp.ui.TimelapseViewModel
 import com.github.naixx.viewapp.ui.components.sampleClipInfo
 import com.github.naixx.viewapp.utils.EventBus
-import github.naixx.core.DeviceSession
-import github.naixx.core.DeviceState
-import github.naixx.core.FileSystemFrameStore
-import github.naixx.core.FrameStore
-import github.naixx.db.TimelapseClipInfoDao
+import github.naixx.core.*
 import github.naixx.network.*
 import io.mockk.*
 import kotlinx.coroutines.CoroutineScope
@@ -19,7 +15,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.*
 import kotlinx.io.files.Path
@@ -54,7 +49,6 @@ class DownloadFlowTest : KoinTest {
     private val dispatcher = StandardTestDispatcher()
 
     private val viewApi = mockk<ViewApi>(relaxed = true)
-    private val dao = mockk<TimelapseClipInfoDao>(relaxed = true)
     private val exportRepo = mockk<VideoExportRepository>(relaxed = true)
 
     private lateinit var context: Context
@@ -71,7 +65,7 @@ class DownloadFlowTest : KoinTest {
 
     private val testModule = module {
         factory<ViewApi> { (_: String) -> viewApi }
-        single<TimelapseClipInfoDao> { dao }
+        single<ClipRepository> { MemoryClipRepository() }
         single<VideoExportRepository> { exportRepo }
         single { FileSystemFrameStore(Path(context.filesDir.path), dispatcher) } bind FrameStore::class
         single { DeviceState(idleSession, mockk(relaxed = true), get(), CoroutineScope(dispatcher)) }
@@ -81,8 +75,6 @@ class DownloadFlowTest : KoinTest {
     fun setup() {
         Dispatchers.setMain(dispatcher)
         context = ApplicationProvider.getApplicationContext()
-        every { dao.getTimelapseClipInfo(any()) } returns flowOf(null)
-        coEvery { dao.insertTimelapseClipInfo(any()) } just Runs
         clearTimelapseCache()
         stopKoin()
         startKoin { modules(testModule) }

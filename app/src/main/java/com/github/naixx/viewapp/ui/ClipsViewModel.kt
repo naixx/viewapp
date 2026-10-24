@@ -3,7 +3,7 @@ package com.github.naixx.viewapp.ui
 import cafe.adriel.voyager.core.model.ScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
 import com.github.naixx.logger.LL
-import github.naixx.db.ClipRepository
+import github.naixx.core.ClipRepository
 import github.naixx.network.ConnectionState
 import github.naixx.network.ViewApi
 import kotlinx.coroutines.flow.SharingStarted

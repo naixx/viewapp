@@ -1,6 +1,7 @@
 package github.naixx.db
 
 import androidx.room.Room
+import github.naixx.core.ClipRepository
 import org.koin.android.ext.koin.androidContext
 import org.koin.dsl.module
 
@@ -19,5 +20,5 @@ val dbModule = module {
 
     single { get<ClipDatabase>().timelapseClipInfoDao() }
 
-    single<ClipRepository> { ClipRepositoryImpl(get()) }
+    single<ClipRepository> { RoomClipRepository(get(), get()) }
 }

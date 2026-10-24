@@ -12,16 +12,7 @@ import kotlin.test.*
 @OptIn(ExperimentalCoroutinesApi::class)
 class FrameDownloaderTest {
 
-    /** Only `download` matters here; the rest of the API is never reached. */
-    private class FakeApi(private val fetch: suspend (String) -> ByteArray) : ViewApi {
-        val requested = mutableListOf<String>()
-        override suspend fun download(file: String): ByteArray { requested += file; return fetch(file) }
-        override suspend fun auth(username: Any): Auth = error("unused")
-        override suspend fun socketUrl(): AddressResponse = error("unused")
-        override suspend fun clips(): List<Clip> = error("unused")
-        override suspend fun clipInfo(name: String): TimelapseClipInfo = error("unused")
-        override suspend fun socketUrl(url: String): AddressResponse = error("unused")
-    }
+    private fun FakeApi(fetch: suspend (String) -> ByteArray) = FakeViewApi(onDownload = fetch)
 
     private val store = MemoryFrameStore()
     private val progress = mutableListOf<List<Int>>()
