@@ -46,7 +46,7 @@ slf4jSimple = "2.0.16"
 sonner = "0.3.8"
 startupRuntime = "1.2.0"
 statelyCommon = "2.0.7"
-voyager = "1.1.0-beta02"
+voyager = "2.2.21-1.10.3" # Kotlin-CMP coupled versions since 2.x; built against lifecycle 2.10, which voyager-lifecycle-kmp needs (1.1.0-beta0x linked against the old core-bundle savedstate and failed at runtime on wasm)
 coil = "3.5.0" # 3.6+ needs compileSdk 37 (platform 37.0 is installed); bump both together
 composeViewModel = "2.8.4"
 composeBom = "2025.02.00"
@@ -140,6 +140,7 @@ voyager-navigator = { module = "cafe.adriel.voyager:voyager-navigator", version.
 voyager-tab-navigator = { module = "cafe.adriel.voyager:voyager-tab-navigator", version.ref = "voyager" }
 voyager-bottom-sheet-navigator = { module = "cafe.adriel.voyager:voyager-bottom-sheet-navigator", version.ref = "voyager" }
 voyager-transitions = { module = "cafe.adriel.voyager:voyager-transitions", version.ref = "voyager" }
+voyager-lifecycle-kmp = { module = "cafe.adriel.voyager:voyager-lifecycle-kmp", version.ref = "voyager" } # a ViewModelStore per Screen outside Android
 
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
 coil-network = { module = "io.coil-kt.coil3:coil-network-ktor3", version.ref = "coil" }

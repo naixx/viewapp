@@ -27,6 +27,8 @@ kotlin {
         wasmJsMain.dependencies {
             implementation(project(":core")) // brings :network as api
             implementation(project(":ui"))
+            implementation(libs.voyager.lifecycle.kmp) // ProvideNavigatorLifecycleKMPSupport: a ViewModelStore per Screen, as on Android
+            implementation(libs.coil.network) // clip previews by URL (/download)
 
             implementation(compose.runtime)
             implementation(compose.foundation)
