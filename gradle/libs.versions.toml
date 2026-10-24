@@ -55,6 +55,7 @@ koin = "4.2.2"
 
 kotlinxCoroutinesAndroid = "1.9.0"
 kotlinxSerialization = "1.11.0"
+kotlinxIo = "0.5.4" # the version Ktor 3.0.3 brings; keep them equal
 ktorVersion = "3.0.3"
 
 [libraries]
@@ -110,6 +111,7 @@ androidx-material3 = { group = "androidx.compose.material3", name = "material3" 
 
 kotlinx-collections-immutable = { module = "org.jetbrains.kotlinx:kotlinx-collections-immutable", version.ref = "kotlinxCollectionsImmutable" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
+kotlinx-io-core = { module = "org.jetbrains.kotlinx:kotlinx-io-core", version.ref = "kotlinxIo" }
 kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinxDatetime" }
 kottie = { module = "io.github.ismai117:kottie", version.ref = "kottie" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }

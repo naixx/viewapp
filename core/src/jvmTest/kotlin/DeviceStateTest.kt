@@ -1,5 +1,4 @@
-import github.naixx.core.DeviceSession
-import github.naixx.core.DeviceState
+import github.naixx.core.*
 import github.naixx.network.*
 import github.naixx.network.AddressResponse.Address
 import kotlinx.coroutines.CoroutineScope
@@ -9,7 +8,9 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlin.io.encoding.Base64
 import kotlin.test.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -38,7 +39,8 @@ class DeviceStateTest {
     private val session = FakeSession()
     private val scope = CoroutineScope(UnconfinedTestDispatcher())
     private val time = FakeClock(1_000_000)
-    private val state = DeviceState(session, storage, scope, clock = time)
+    private val frames = MemoryFrameStore()
+    private val state = DeviceState(session, storage, frames, scope, clock = time)
 
     @AfterTest
     fun tearDown() = scope.cancel()
@@ -121,5 +123,21 @@ class DeviceStateTest {
     fun sendGoesToTheSession() {
         state.send(Stop())
         assertIs<Stop>(session.sent.single())
+    }
+
+    @Test
+    fun liveFramesAreCachedOnceAndAnnounced() = runBlocking {
+        val written = mutableListOf<LiveFrame>()
+        state.frameWritten.onEach { written += it }.launchIn(scope)
+        val jpeg = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 1, 2, 3)
+
+        session.receive(Thumbnail(imageType = "thumbnail", type = "thumbnail", frameIndex = 7, tlName = "tL-414", imageBase64 = Base64.Default.encode(jpeg)))
+        session.receive(Thumbnail(imageType = "preview", type = "thumbnail", imageBase64 = Base64.Default.encode(jpeg))) // live view: no frame
+        session.receive(Thumbnail(imageType = "thumbnail", type = "thumbnail", frameIndex = 8, tlName = "tL-414", imageBase64 = "not base64!"))
+
+        assertContentEquals(jpeg, frames.read("tl-414", 7))
+        assertEquals(listOf(7), frames.indices("TL-414"))
+        assertEquals(listOf(LiveFrame("tL-414", 7)), written)
+        assertEquals(8, state.thumbnail.value?.frameIndex) // the message itself is still the latest thumbnail
     }
 }

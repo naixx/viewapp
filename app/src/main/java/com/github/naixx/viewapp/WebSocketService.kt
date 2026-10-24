@@ -8,7 +8,6 @@ import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.os.Build
 import android.os.IBinder
-import android.util.Base64
 import androidx.core.app.*
 import com.github.naixx.logger.LL
 import com.github.naixx.viewapp.network.holdViewAp
@@ -22,13 +21,12 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import org.koin.android.ext.android.inject
-import java.io.File
 
 /**
  * The foreground anchor of the connection: it keeps the process alive while [AndroidDeviceSession] is connected
- * and does the Android-only work around it — the ongoing notification, holding the VIEW's hotspot, caching live
- * frames and raising a heads-up notification for capture errors while the app is in the background. The
- * connection itself lives in the session; this service starts and stops with it.
+ * and does the Android-only work around it — the ongoing notification, holding the VIEW's hotspot and raising a
+ * heads-up notification for capture errors while the app is in the background. The connection itself lives in
+ * the session and the live-frame cache in DeviceState; this service starts and stops with the session.
  */
 class WebSocketService : Service() {
 
@@ -130,14 +128,8 @@ class WebSocketService : Service() {
     }
 
     private fun processMessage(message: BaseMessage) {
-        when (message) {
-            is Thumbnail -> saveThumbnail(message)
-            is IntervalometerError ->
-                if (!AppForeground.isForeground)
-                    notifyError(message.msg ?: "An error occurred during capture")
-
-            else -> {}
-        }
+        if (message is IntervalometerError && !AppForeground.isForeground)
+            notifyError(message.msg ?: "An error occurred during capture")
     }
 
     private var errorNotificationId = 1000
@@ -164,24 +156,6 @@ class WebSocketService : Service() {
             .setContentIntent(contentPending)
             .build()
         notificationManager.notify(errorNotificationId++, notification)
-    }
-
-    // Moves to a FrameStore in :core with the next step; until then the frame cache layout lives here and in TimelapseViewModel.
-    private fun saveThumbnail(thumbnail: Thumbnail) {
-        serviceScope.launch(Dispatchers.IO) {
-            try {
-                val timelapseDir = File(filesDir, "timelapses/${thumbnail.tlName.lowercase()}").apply { mkdirs() }
-                val frameNumber = thumbnail.frameIndex
-                val frameFile = File(timelapseDir, "frame_$frameNumber.jpg")
-
-                val imageData = Base64.decode(thumbnail.imageBase64, Base64.DEFAULT)
-                frameFile.writeBytes(imageData)
-
-                LL.d("Service saved thumbnail: ${frameFile.absolutePath}")
-            } catch (e: Exception) {
-                LL.e("Error saving thumbnail: ${e.message}")
-            }
-        }
     }
 
     override fun onDestroy() {

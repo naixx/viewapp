@@ -1,13 +1,16 @@
 package com.github.naixx.viewapp.ui
 
 import android.content.Context
-import android.util.Base64
 import androidx.lifecycle.*
 import com.github.naixx.compose.*
 import com.github.naixx.logger.LL
 import com.github.naixx.viewapp.encoding.*
 import com.github.naixx.viewapp.utils.EventBus
 import com.github.naixx.viewapp.utils.lumaHistogram
+import github.naixx.core.DeviceState
+import github.naixx.core.DownloadResult
+import github.naixx.core.FileSystemFrameStore
+import github.naixx.core.FrameDownloader
 import github.naixx.db.TimelapseClipInfoDao
 import github.naixx.network.*
 import kotlinx.coroutines.*
@@ -18,12 +21,10 @@ import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * How many consecutive fully-failed batches we tolerate before aborting a download. On a flaky
- * field connection every request blocks up to the HTTP timeout, so without this the download would
- * grind through every remaining batch with no progress and no feedback.
+ * One clip's frames on this device: what is cached, the download, playback position, the histogram of a frame and
+ * the MP4 export. Frames live in the [FileSystemFrameStore]; a running time-lapse's frames arrive through
+ * [DeviceState.frameWritten]. The `context` parameters are kept for the screens until they move to the shared UI.
  */
-private const val MAX_CONSECUTIVE_FAILED_BATCHES = 3
-
 class TimelapseViewModel(
     private val clip: Clip,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
@@ -43,7 +44,9 @@ class TimelapseViewModel(
 
     private var downloadJob: Job? = null
     private var exportJob: Job? = null
-    private var totalFrames: Int = clip.frames
+    // The concrete store: the player and the exporter still want java.io.Files (see getFrameFile) until step 10.
+    private val frames: FileSystemFrameStore by inject()
+    private val device: DeviceState by inject()
     private val videoExportRepository: VideoExportRepository by inject()
     private val timelapseClipInfoDao: TimelapseClipInfoDao by inject()
 
@@ -58,45 +61,36 @@ class TimelapseViewModel(
             initialValue = null
         )
 
+    init {
+        // Frames of a running time-lapse are cached by DeviceState as they arrive; show each at once.
+        device.frameWritten
+            .filter { it.clip.equals(clip.name, ignoreCase = true) }
+            .onEach { onLiveFrame(it.index) }
+            .launchIn(viewModelScope)
+    }
+
     /**
      * Checks for existing frames without starting download
      * Returns Pair(downloadedCount, totalFrames)
      */
     suspend fun checkExistingFrames(context: Context, totalFrames: Int): Pair<Int, Int> {
-        return withContext(ioDispatcher) {
-            val cacheDir = File(context.filesDir, "timelapses/${clip.name.lowercase()}")
-            val downloadedIndices = (1..totalFrames).filter { i ->
-                File(cacheDir, "frame_$i.jpg").exists()
+        val downloadedIndices = frames.indices(clip.name).filter { it in 1..totalFrames }
+
+        // Update the state flows with the found frames
+        if (downloadedIndices.isNotEmpty()) {
+            downloadedFrames.value = downloadedIndices
+
+            // Set current frame to first frame if not already set
+            if (currentFrameIndex.value <= 0) {
+                setCurrentFrame(1)
             }
-
-            // Update the state flows with the found frames
-            if (downloadedIndices.isNotEmpty()) {
-                downloadedFrames.value = downloadedIndices.sorted()
-
-                // Set current frame to first frame if not already set
-                if (currentFrameIndex.value <= 0) {
-                    setCurrentFrame(1)
-                }
-            }
-
-            Pair(downloadedIndices.size, totalFrames)
         }
+
+        return Pair(downloadedIndices.size, totalFrames)
     }
 
-    /**
-     * Ingest a frame that arrived live (as a Thumbnail) during a running time-lapse: cache it to disk
-     * (if the foreground service hasn't already), add it to [downloadedFrames] and advance to it so it
-     * shows in the player immediately. Auto-follows the newest frame unless the user has scrubbed back.
-     */
-    suspend fun addLiveFrame(context: Context, frameIndex: Int, imageBase64: String) {
-        withContext(ioDispatcher) {
-            val dir = File(context.filesDir, "timelapses/${clip.name.lowercase()}").apply { mkdirs() }
-            val file = File(dir, "frame_$frameIndex.jpg")
-            if (!file.exists()) {
-                runCatching { file.writeBytes(Base64.decode(imageBase64, Base64.DEFAULT)) }
-                    .onFailure { LL.e("Error caching live frame: ${it.message}") }
-            }
-        }
+    /** A live frame landed in the store: list it and advance to it, unless the user has scrubbed back. */
+    private fun onLiveFrame(frameIndex: Int) {
         val prevLatest = downloadedFrames.value.maxOrNull() ?: 0
         val followLatest = currentFrameIndex.value >= prevLatest
         downloadedFrames.value = (downloadedFrames.value + frameIndex).distinct().sorted()
@@ -137,63 +131,16 @@ class TimelapseViewModel(
         downloadJob = viewModelScope.launch {
             val thisJob = coroutineContext[Job]
             try {
-                val cacheDir = File(context.filesDir, "timelapses/${clip.name.lowercase()}").apply { mkdirs() }
                 val viewApi: ViewApi = get { parametersOf(state.address.fromUrl) }
                 val info = viewApi.clipInfo(clip.name).also {
                     timelapseClipInfoDao.insertTimelapseClipInfo(listOf(it))
                 }
+                val totalFrames = info.frames ?: return@launch
 
-                totalFrames = info.frames ?: return@launch
-
-                val downloadedIndices = (1..totalFrames).filter { i ->
-                    File(cacheDir, "frame_$i.jpg").exists()
-                }.toMutableList()
-
-                downloadedFrames.value = downloadedIndices.sorted()
-
-                val framesToDownload = (1..totalFrames) - downloadedIndices
-                if (framesToDownload.isEmpty()) return@launch
-
-                val batchSize = 10
-                var consecutiveFailedBatches = 0
-                framesToDownload.chunked(batchSize).forEach { batch ->
-                    if (!isActive) return@launch
-
-                    val results = batch.map { i ->
-                        async(ioDispatcher) {
-                            try {
-                                val frameFile = File(cacheDir, "frame_$i.jpg")
-                                if (!frameFile.exists()) {
-                                    val frameBytes = viewApi.download(
-                                        "${clip.name}/cam-1-${i.toString().padStart(5, '0')}.jpg"
-                                            .lowercase()
-                                    )
-                                    frameFile.writeBytes(frameBytes)
-                                }
-                                i
-                            } catch (e: CancellationException) {
-                                throw e
-                            } catch (e: Exception) {
-                                LL.e("Failed to download frame $i: ${e.message}")
-                                null
-                            }
-                        }
-                    }.awaitAll().filterNotNull()
-
-                    downloadedIndices.addAll(results)
-                    downloadedFrames.value = downloadedIndices.sorted()
-
-                    if (results.isEmpty()) {
-                        // A whole batch failed — bail out instead of grinding through every remaining
-                        // batch (each request blocking on the HTTP timeout) with no progress or feedback.
-                        if (++consecutiveFailedBatches >= MAX_CONSECUTIVE_FAILED_BATCHES) {
-                            EventBus.error("Download failed — check the connection to the VIEW and try again")
-                            return@launch
-                        }
-                    } else {
-                        consecutiveFailedBatches = 0
-                    }
+                val result = FrameDownloader(viewApi, frames, ioDispatcher).download(clip.name, totalFrames) {
+                    downloadedFrames.value = it
                 }
+                if (result is DownloadResult.Failed) EventBus.error(result.message)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -232,7 +179,7 @@ class TimelapseViewModel(
     /**
      * Jump to — and resume following — the newest captured frame. Reads the authoritative frame list
      * (not a possibly-stale UI snapshot) and targets the real frame *number*, not the frame count, so
-     * [addLiveFrame]'s "follow latest" check keeps advancing the player as new thumbnails arrive.
+     * [onLiveFrame]'s "follow latest" check keeps advancing the player as new thumbnails arrive.
      */
     fun goLive() {
         togglePlayback(false)
@@ -249,10 +196,8 @@ class TimelapseViewModel(
     /**
      * Get the file for a specific frame if it exists
      */
-    fun getFrameFile(context: Context, frameIndex: Int): File? {
-        val file = File(context.filesDir, "timelapses/${clip.name.lowercase()}/frame_$frameIndex.jpg")
-        return if (file.exists()) file else null
-    }
+    fun getFrameFile(context: Context, frameIndex: Int): File? =
+        File(frames.path(clip.name, frameIndex).toString()).takeIf { it.exists() }
 
     /**
      * Luma histogram of a cached frame, computed from its JPEG (the VIEW's `histogram` message carries no
@@ -260,7 +205,7 @@ class TimelapseViewModel(
      */
     suspend fun histogram(context: Context, frameIndex: Int): List<Int>? =
         histograms[frameIndex] ?: withContext(ioDispatcher) {
-            getFrameFile(context, frameIndex)?.let(::lumaHistogram)?.also { histograms[frameIndex] = it }
+            frames.read(clip.name, frameIndex)?.let(::lumaHistogram)?.also { histograms[frameIndex] = it }
         }
 
     /**
@@ -276,15 +221,8 @@ class TimelapseViewModel(
         }
         setCurrentFrame(0)
 
-        // Delete all cached frames
-        viewModelScope.launch(ioDispatcher) {
-            val cacheDir = File(context.filesDir, "timelapses/${clip.name.lowercase()}")
-            if (cacheDir.exists()) {
-                cacheDir.listFiles()?.forEach { file ->
-                    file.delete()
-                }
-                cacheDir.delete()
-            }
+        viewModelScope.launch {
+            frames.delete(clip.name)
             histograms.clear()
             downloadedFrames.value = emptyList()
         }
@@ -293,18 +231,7 @@ class TimelapseViewModel(
     /**
      * Gets the size of the cache for this clip
      */
-    suspend fun getCacheSize(context: Context): Long {
-        return withContext(ioDispatcher) {
-            val cacheDir = File(context.filesDir, "timelapses/${clip.name.lowercase()}")
-            var size = 0L
-            if (cacheDir.exists()) {
-                cacheDir.listFiles()?.forEach { file ->
-                    size += file.length()
-                }
-            }
-            size
-        }
-    }
+    suspend fun getCacheSize(context: Context): Long = frames.size(clip.name)
 
     fun exportVideo(context: Context, fps: Int = 30) {
         if (downloadedFrames.value.isEmpty() || exportJob?.isActive == true) return

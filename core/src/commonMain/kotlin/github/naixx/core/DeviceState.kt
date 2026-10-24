@@ -1,8 +1,11 @@
 package github.naixx.core
 
+import com.github.naixx.logger.LL
 import github.naixx.network.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
+import kotlin.io.encoding.Base64
 import kotlin.reflect.KClass
 import kotlin.time.Clock
 
@@ -12,6 +15,9 @@ import kotlin.time.Clock
  * and the device's clock. Owns the handshake: after every (re)connect it authenticates the session and asks for
  * the camera, settings, battery and program, so no shell has to know the protocol.
  *
+ * Also caches the frames of a running time-lapse as they arrive (`thumbnail` messages) in the [FrameStore], once,
+ * for every consumer, and announces each on [frameWritten].
+ *
  * Lives as long as the session (one per app / page), not as long as a screen: the Android service keeps the
  * connection while the UI is gone, and the state should still be there when the UI comes back.
  *
@@ -20,7 +26,8 @@ import kotlin.time.Clock
 class DeviceState(
     private val session: DeviceSession,
     private val storage: StorageProvider,
-    scope: CoroutineScope,
+    private val frames: FrameStore,
+    private val scope: CoroutineScope,
     private val clock: Clock = Clock.System,
 ) {
 
@@ -50,6 +57,10 @@ class DeviceState(
     private var nextNotificationId = 0L
 
     val deviceClock = DeviceClock(clock)
+
+    /** A live frame has been written to the [FrameStore] (after the write, so it can be read at once). */
+    val frameWritten: SharedFlow<LiveFrame>
+        field = MutableSharedFlow<LiveFrame>(extraBufferCapacity = 16)
 
     init {
         session.messages.onEach(::onMessage).launchIn(scope)
@@ -91,8 +102,21 @@ class DeviceState(
             }
             is CaptureError -> errors.tryEmit(message.message)
             is IntervalometerStatus -> deviceClock.onStatus(message.status.captureStartTime)
+            is Thumbnail -> cacheLiveFrame(message)
             else -> Unit
         }
         messageFlows.getOrPut(message::class) { MutableStateFlow(null) }.value = message
+    }
+
+    // Only a running time-lapse's frames carry a frame number and a clip name; live-view and test-shot previews don't.
+    private fun cacheLiveFrame(thumbnail: Thumbnail) {
+        if (thumbnail.frameIndex < 0 || thumbnail.tlName.isEmpty()) return
+        val jpeg = runCatching { Base64.Default.decode(thumbnail.imageBase64) }
+            .getOrElse { LL.e("Live frame ${thumbnail.frameIndex} of ${thumbnail.tlName}: bad base64: ${it.message}"); return }
+        scope.launch {
+            runCatching { frames.write(thumbnail.tlName, thumbnail.frameIndex, jpeg) }
+                .onSuccess { frameWritten.emit(LiveFrame(thumbnail.tlName, thumbnail.frameIndex)) }
+                .onFailure { LL.e("Live frame ${thumbnail.frameIndex} of ${thumbnail.tlName}: ${it.message}") }
+        }
     }
 }

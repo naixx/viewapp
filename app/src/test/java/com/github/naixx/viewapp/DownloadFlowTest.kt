@@ -7,14 +7,23 @@ import com.github.naixx.viewapp.encoding.VideoExportRepository
 import com.github.naixx.viewapp.ui.TimelapseViewModel
 import com.github.naixx.viewapp.ui.components.sampleClipInfo
 import com.github.naixx.viewapp.utils.EventBus
+import github.naixx.core.DeviceSession
+import github.naixx.core.DeviceState
+import github.naixx.core.FileSystemFrameStore
+import github.naixx.core.FrameStore
 import github.naixx.db.TimelapseClipInfoDao
 import github.naixx.network.*
 import io.mockk.*
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.*
+import kotlinx.io.files.Path
+import org.koin.dsl.bind
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -50,10 +59,22 @@ class DownloadFlowTest : KoinTest {
 
     private lateinit var context: Context
 
+    /** No device in these tests: the session never connects and sends nothing. */
+    private val idleSession = object : DeviceSession {
+        override val state = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
+        override val messages = MutableSharedFlow<BaseMessage>()
+        override fun send(message: OutMessage) = Unit
+        override val controllable = false
+        override fun connect() = Unit
+        override fun disconnect() = Unit
+    }
+
     private val testModule = module {
         factory<ViewApi> { (_: String) -> viewApi }
         single<TimelapseClipInfoDao> { dao }
         single<VideoExportRepository> { exportRepo }
+        single { FileSystemFrameStore(Path(context.filesDir.path), dispatcher) } bind FrameStore::class
+        single { DeviceState(idleSession, mockk(relaxed = true), get(), CoroutineScope(dispatcher)) }
     }
 
     @Before

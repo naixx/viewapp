@@ -173,16 +173,8 @@ class StatusScreen : Screen {
             }
         }
 
-        // Frames arrive live as Thumbnail messages while running — cache + show them immediately.
-        LaunchedEffect(thumbnail) {
-            val t = thumbnail ?: return@LaunchedEffect
-            val tvm = timelapseViewModel
-            if (intervalStatus?.status?.running == true && tvm != null && clip != null &&
-                t.tlName.equals(clip.name, ignoreCase = true)
-            ) {
-                tvm.addLiveFrame(context, t.frameIndex, t.imageBase64)
-            }
-        }
+        // Frames of the running time-lapse are cached by DeviceState as they arrive and reach the view model
+        // through DeviceState.frameWritten.
 
         val downloadedFrames by timelapseViewModel?.downloadedFrames?.collectAsState() ?: remember { mutableStateOf(emptyList()) }
         val currentFrameIndex by timelapseViewModel?.currentFrameIndex?.collectAsState() ?: remember { mutableStateOf(0) }

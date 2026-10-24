@@ -19,6 +19,7 @@ kotlin {
             api(project(":network"))
             api(libs.kotlinx.coroutines.core)
             api(libs.kotlinx.collections.immutable)
+            api(libs.kotlinx.io.core) // files on every platform that has them (the browser hasn't)
             implementation(libs.kmp.libs.logger)
         }
         jvmTest.dependencies {
