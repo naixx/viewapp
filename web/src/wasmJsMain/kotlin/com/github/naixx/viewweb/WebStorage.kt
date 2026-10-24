@@ -18,7 +18,7 @@ class WebStorage : StorageProvider {
 
     override fun session(session: String) = localStorage.setItem(SESSION, session)
 
-    override fun lastSuccessfulAddress(string: String) = Unit
+    override fun lastSuccessfulAddress(address: String) = Unit
 
     override fun email(): String? = null
 

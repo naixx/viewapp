@@ -17,8 +17,8 @@ class PrefsStorage : StorageProvider {
         Prefs.session = session
     }
 
-    override fun lastSuccessfulAddress(ip: String) {
-        Prefs.lastConnectedIp += ip
+    override fun lastSuccessfulAddress(address: String) {
+        Prefs.lastConnectedIp += address
     }
 
     override fun email(): String? = Prefs.email

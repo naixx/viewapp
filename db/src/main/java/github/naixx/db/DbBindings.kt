@@ -20,7 +20,7 @@ object DbBindings {
         ClipDatabase::class.java,
         "clips_database"
     )
-        .fallbackToDestructiveMigration()
+        .fallbackToDestructiveMigration(dropAllTables = true)
         .build()
 
     @Provides

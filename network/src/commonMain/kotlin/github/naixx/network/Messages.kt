@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalSerializationApi::class) // @JsonClassDiscriminator, @JsonIgnoreUnknownKeys
+
 package github.naixx.network
 
 import github.naixx.network.internal.DynamicListSerializer

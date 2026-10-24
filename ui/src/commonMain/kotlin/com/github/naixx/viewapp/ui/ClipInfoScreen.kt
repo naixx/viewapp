@@ -19,12 +19,12 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.VideoLibrary
-import androidx.compose.material.icons.outlined.OpenInNew
+import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -363,7 +363,7 @@ fun ExportControls(
             if (lastExported != null) {
                 VButton(
                     text = "Open Video",
-                    imageVector = Icons.Outlined.OpenInNew
+                    imageVector = Icons.AutoMirrored.Outlined.OpenInNew
                 ) {
                     onOpenVideo(lastExported)
                 }
@@ -451,7 +451,7 @@ private fun InfoView(info: TimelapseClipInfo) {
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                Divider(color = Color.DarkGray, thickness = 0.5.dp)
+                HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
 
                 Spacer(modifier = Modifier.height(8.dp))
 

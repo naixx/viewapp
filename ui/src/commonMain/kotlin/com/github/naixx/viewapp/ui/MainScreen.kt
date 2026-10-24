@@ -113,22 +113,6 @@ private class ClipsTab() : Tab {
     }
 }
 
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = name,
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    ViewAppTheme {
-        Greeting("Android")
-    }
-}
-
 @Preview
 @Composable
 fun PreviewMainScreen() {

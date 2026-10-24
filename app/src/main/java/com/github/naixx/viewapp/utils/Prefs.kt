@@ -3,6 +3,7 @@ package com.github.naixx.viewapp.utils
 import com.github.naixx.prefs.PrefsObject
 import com.github.naixx.prefs.serialized
 import com.github.naixx.prefs.stringFlow
+import com.russhwolf.settings.ExperimentalSettingsApi
 import com.russhwolf.settings.Settings
 import com.russhwolf.settings.boolean
 import com.russhwolf.settings.nullableString
@@ -11,6 +12,7 @@ import com.russhwolf.settings.string
 
 object Prefs : PrefsObject {
 
+    @OptIn(ExperimentalSettingsApi::class)
     override var settings = Settings().makeObservable()
     val currentUrl by stringFlow("")
     val email by settings.string(defaultValue = "")

@@ -3,7 +3,6 @@ import com.android.build.api.variant.BuildConfigField
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
-    alias(libs.plugins.ksp)
     alias(libs.plugins.metro)
 }
 
@@ -109,9 +108,7 @@ dependencies {
     implementation(libs.androidx.compose.lifecycle)
     implementation(libs.lifecycle.viewModelKtx)
 
-    implementation(libs.voyager.navigator)
-    implementation(libs.voyager.transitions)
-    implementation(libs.voyager.tab.navigator)
+    implementation(libs.voyager.navigator) // MainActivity hosts the Navigator; the rest of Voyager comes with :ui
 
     implementation(libs.kmp.libs.logger)
     implementation(libs.kmp.libs.prefs)
@@ -120,35 +117,13 @@ dependencies {
     implementation(libs.multiplatform.settings.serialization)
     debugImplementation(libs.slf4j.simple)
 
-    implementation(libs.kotlinx.datetime)
-
-
-
-    implementation(libs.ktor.client.cio)
-    implementation(libs.ktor.client.websockets)
     implementation(libs.kotlinx.coroutines.android)
 
-    implementation(libs.ktorfit)
     implementation(libs.metrox.android) // MetroAppComponentFactory: the Activity and the service are built by the graph
-    implementation(libs.ktor.client.core)
-    implementation(libs.ktor.client.content.negotiation)
-    implementation(libs.ktor.client.logging)
-    api(libs.ktor.serialization.kotlinx.json)
-//    api(libs.kotlinx.datetime)
-//    api(libs.kotlinx.collections.immutable)
-    implementation(libs.ktorfit.converters.flow)
-    implementation(libs.ktor.client.cio)
 
     // Coil for image loading
     implementation(libs.coil.compose)
     implementation(libs.coil.network)
-
-    implementation(libs.kotlinx.collections.immutable)
-
-    // Room
-    implementation(libs.room.runtime)
-    implementation(libs.room.ktx)
-    ksp(libs.room.compiler)
 
     testImplementation(libs.robolectric)
     testImplementation("androidx.test:core-ktx:1.6.1")
@@ -157,8 +132,12 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.jetbrains.kotlin.test.junit) // used to come with koin-test
     testImplementation(libs.androidx.ui.test.junit4) // ViewModelScopesTest: Compose + Voyager under Robolectric
+    testImplementation(libs.ktor.client.core) // RobolectricTest builds its own client
 
     androidTestImplementation(libs.jetbrains.kotlin.test.junit)
+    androidTestImplementation(libs.ktor.client.core) // InstrumentedTests builds its own Ktorfit
+    androidTestImplementation(libs.ktorfit)
+    androidTestImplementation(libs.ktorfit.converters.flow)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.ui.test.junit4)

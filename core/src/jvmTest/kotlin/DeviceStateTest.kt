@@ -31,7 +31,7 @@ class DeviceStateTest {
     private val storage = object : StorageProvider {
         override fun session() = "sess-1"
         override fun session(session: String) = Unit
-        override fun lastSuccessfulAddress(string: String) = Unit
+        override fun lastSuccessfulAddress(address: String) = Unit
         override fun email() = null
         override fun password() = null
     }

@@ -27,7 +27,7 @@ interface StorageProvider {
 
     fun session(session: String)
 
-    fun lastSuccessfulAddress(string: String)
+    fun lastSuccessfulAddress(address: String)
 
     fun email(): String?
 
