@@ -17,27 +17,16 @@ import com.github.naixx.viewapp.utils.Prefs
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metrox.android.ServiceKey
-import github.naixx.core.DeviceSession
 import github.naixx.core.DeviceState
 import github.naixx.network.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 
-/**
- * The foreground anchor of the connection: it keeps the process alive while [AndroidDeviceSession] is connected
- * and does the Android-only work around it — the ongoing notification, holding the VIEW's hotspot and raising a
- * heads-up notification for capture errors while the app is in the background. The connection itself lives in
- * the session and the live-frame cache in DeviceState; this service starts and stops with the session.
- *
- * Built by the graph through MetroAppComponentFactory (see AppGraph), hence the constructor. [deviceState] is taken
- * here so the typed state (and with it the handshake after every connect) exists whenever the connection does, even
- * if the system restarted the service without the UI.
- */
 @ServiceKey
 @ContributesIntoMap(AppScope::class)
 class WebSocketService(
-    private val session: DeviceSession,
+    private val session: AndroidDeviceSession,
     private val deviceState: DeviceState,
 ) : Service() {
 
@@ -56,16 +45,15 @@ class WebSocketService(
         LL.e("onCreate; device ${deviceState.connection.value}")
         serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob() + exceptionHandler)
         serviceScope.launch {
+            session.keepConnected()
+            LL.e("the connection loop ended: ${session.state.value}")
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+        }
+        serviceScope.launch {
             if (Prefs.apMode) setAccessPointMode(true) // the device was last reached on its hotspot
             session.state.collect {
                 when (it) {
-                    is ConnectionState.LoginRequired -> {
-                        // The loop stops here; the Activity shows the login dialog and reconnects.
-                        LL.e("login req")
-                        stopForeground(STOP_FOREGROUND_REMOVE)
-                        stopSelf()
-                    }
-
                     is ConnectionState.Connecting -> sendNotification("Connecting to VIEW", R.drawable.ic_popup_sync)
                     is ConnectionState.Connected -> {
                         sendNotification("Connected to VIEW", R.drawable.ic_menu_gallery)
@@ -86,7 +74,6 @@ class WebSocketService(
             return START_NOT_STICKY
         }
         startForeground(1, createNotification("Not connected", R.drawable.ic_menu_gallery))
-        session.connect() // idempotent; also covers a restart by the system
         return START_STICKY
     }
 

@@ -24,11 +24,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.stateIn
 
-/**
- * The Android [DeviceSession]: owns the shared [WebSocketClient] and its reconnect loop for the life of the
- * process (a single in the app graph), and keeps [WebSocketService] running in the foreground while connected so the system
- * leaves the socket alone when the UI is gone. The UI and the service both talk to this object; nothing is bound.
- */
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class)
 class AndroidDeviceSession(
@@ -36,12 +31,9 @@ class AndroidDeviceSession(
     private val client: WebSocketClient,
 ) : DeviceSession {
 
-    // Safety net: socket aborts during a network switch can surface as uncaught exceptions on engine/teardown
-    // coroutines. Without a handler they reach the thread's default handler and crash the app; here we just log
-    // and let the reconnect loop recover.
     private val exceptionHandler = CoroutineExceptionHandler { _, e -> LL.e(e) }
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob() + exceptionHandler)
-    private var connectionJob: Job? = null
+    private val service get() = Intent(context, WebSocketService::class.java)
 
     override val state: StateFlow<ConnectionState> get() = client.connectionState
 
@@ -64,34 +56,30 @@ class AndroidDeviceSession(
         awaitClose { cm.unregisterNetworkCallback(callback) }
     }.stateIn(scope, SharingStarted.WhileSubscribed(), currentWifiSubnetLabel(context))
 
-    /**
-     * Idempotent: called from the Activity, the login dialog and the service's own start (also when the system
-     * restarts it). Without the guard each call would launch another infinite reconnect loop, and after one
-     * connected the others would keep scanning and fight over the single WebSocket session.
-     */
     override fun connect() {
-        if (connectionJob?.isActive != true) {
-            val priorityUrls = Prefs.lastConnectedIp.toList()
-            val scanUrls = generateLocalServer(context) + WIFI_URL
-            LL.i("connecting; known: ${priorityUrls.joinToString()}, scanning ${scanUrls.size} hosts")
-            connectionJob = scope.launch {
-                // The handshake after a connect is DeviceState's.
-                client.startWebSocket(priorityUrls, scanUrls, { _, _ -> }) { message ->
-                    if (!messages.tryEmit(message)) LL.w("message dropped: ${message.type}")
-                }
-            }
-        }
-        ContextCompat.startForegroundService(context, Intent(context, WebSocketService::class.java))
+        ContextCompat.startForegroundService(context, service)
     }
 
     override fun disconnect() {
-        connectionJob?.cancel()
-        connectionJob = null
+        context.stopService(service)
         client.connectionState.value = ConnectionState.Disconnected
-        context.stopService(Intent(context, WebSocketService::class.java))
     }
 
     override fun send(message: OutMessage) {
         scope.launch { client.send(message) }
+    }
+
+    suspend fun keepConnected() {
+        val priorityUrls = Prefs.lastConnectedIp.toList()
+        val scanUrls = generateLocalServer(context) + WIFI_URL
+        LL.i("connecting; known: ${priorityUrls.joinToString()}, scanning ${scanUrls.size} hosts")
+        try {
+            client.startWebSocket(priorityUrls, scanUrls, { _, _ -> }) { message ->
+                if (!messages.tryEmit(message)) LL.w("message dropped: ${message.type}")
+            }
+        } catch (e: CancellationException) {
+            client.connectionState.value = ConnectionState.Disconnected
+            throw e
+        }
     }
 }
