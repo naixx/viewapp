@@ -32,6 +32,7 @@ kotlin {
             api(project(":core")) // the components render :network message types; :core brings :network as api
             api(libs.navigation3.ui) // MainScreen: NavDisplay over the back stack; the shells compose MainScreen()
             api(libs.lifecycle.viewmodel.navigation3) // a ViewModelStore per NavEntry: screenViewModel()
+            implementation(libs.material3.adaptive) // MainScreen: the window size class picks the bottom bar or the rail
             api(compose.runtime)
             api(compose.foundation)
             api(compose.material3)

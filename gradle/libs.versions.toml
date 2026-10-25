@@ -48,6 +48,7 @@ startupRuntime = "1.2.0"
 statelyCommon = "2.0.7"
 navigation3 = "1.2.0" # JetBrains navigation3-ui over the androidx KMP runtime (wasm included)
 lifecycleNavigation3 = "2.11.0" # the first lifecycle-viewmodel-navigation3 with a wasm variant; lifts lifecycle to 2.11
+material3Adaptive = "1.3.0" # JetBrains material3-adaptive (wasm included), built against CMP 1.10: window size class, pane scaffolds
 coil = "3.5.0" # 3.6+ needs compileSdk 37 (platform 37.0 is installed); bump both together
 composeViewModel = "2.8.4"
 composeBom = "2025.02.00"
@@ -141,6 +142,7 @@ compose-ui-tooling-preview = { module = "org.jetbrains.compose.ui:ui-tooling-pre
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
 navigation3-ui = { module = "org.jetbrains.androidx.navigation3:navigation3-ui", version.ref = "navigation3" } # NavDisplay
 lifecycle-viewmodel-navigation3 = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-navigation3", version.ref = "lifecycleNavigation3" } # a ViewModelStore per NavEntry
+material3-adaptive = { module = "org.jetbrains.compose.material3.adaptive:adaptive", version.ref = "material3Adaptive" } # currentWindowAdaptiveInfo(): the window size class
 coil-network = { module = "io.coil-kt.coil3:coil-network-ktor3", version.ref = "coil" }
 
 
