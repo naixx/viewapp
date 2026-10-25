@@ -2,19 +2,28 @@ package com.github.naixx.viewapp.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.NoPhotography
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
@@ -190,10 +199,7 @@ fun StatusScreen() {
         }
     }
 
-    Column(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp).verticalScroll(rememberScrollState())
-    ) {
-        Spacer(modifier = Modifier.height(8.dp))
+    val header: @Composable () -> Unit = {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -209,8 +215,12 @@ fun StatusScreen() {
                 onClear = { viewModel.clearNotifications() },
             )
         }
+    }
 
-        if (intervalStatus?.status?.running == true) {
+    val running = intervalStatus?.status?.running == true
+    val camera: CameraSettings? = if (!running && connected?.connected == true) settings?.settings else null
+    val picture: @Composable () -> Unit = {
+        if (running) {
             if (clip != null && timelapseViewModel != null) {
                 // No download/resume controls while capturing: frames stream to disk live
                 // (addLiveFrame), so there is nothing to "resume" — and basing a button on the
@@ -251,26 +261,73 @@ fun StatusScreen() {
             } else {
                 HistogramView(histogram?.histogram)
             }
+        } else if (camera != null) {
+            CameraControls(camera, thumbnail, send)
+        }
+    }
 
+    val controls: @Composable ColumnScope.() -> Unit = {
+        if (running) {
             TimeLapseStatus(bound, connected, intervalStatus?.status, program?.program, program?.raw, settings?.settings?.details, send)
-
             Spacer(modifier = Modifier.height(16.dp))
             StopButton(send)
         } else {
-            // Idle: manual camera control (when a camera is connected) above the program editor
-            // (mirrors the original CameraPage + IntervalometerPage setup view).
-            if (connected?.connected == true) {
-                settings?.settings?.let { CameraControls(it, thumbnail, send) }
-                Spacer(modifier = Modifier.height(16.dp))
-                HorizontalDivider()
-            }
             draft?.let { d ->
                 ProgramEditor(d, programVm, settings?.settings, send)
             }
         }
         BatteryInfo(connected, settings, battery, modifier = Modifier.align(Alignment.CenterHorizontally))
         Spacer(modifier = Modifier.height(8.dp))
+    }
 
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        if (maxWidth >= 840.dp) {
+            Row(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+                val left = Modifier.weight(1f).fillMaxHeight().padding(top = 8.dp, end = 16.dp)
+                if (running || camera != null) {
+                    Column(left.verticalScroll(rememberScrollState())) {
+                        Column(Modifier.widthIn(max = 800.dp)) { picture() }
+                    }
+                } else {
+                    Box(left, contentAlignment = Alignment.Center) { NoCamera(conn) }
+                }
+                Column(Modifier.width(440.dp).verticalScroll(rememberScrollState())) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    header()
+                    controls()
+                }
+            }
+        } else {
+            Column(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp).verticalScroll(rememberScrollState())
+            ) {
+                Spacer(modifier = Modifier.height(8.dp))
+                header()
+                picture()
+                if (camera != null) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    HorizontalDivider()
+                }
+                controls()
+            }
+        }
+    }
+}
+
+@Composable
+private fun NoCamera(conn: ConnectionState) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Icon(
+            Icons.Outlined.NoPhotography,
+            contentDescription = null,
+            modifier = Modifier.size(48.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            if (conn is ConnectionState.Connected) "No camera connected" else "Not connected to the VIEW",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
