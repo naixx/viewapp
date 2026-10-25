@@ -57,7 +57,7 @@ fun AppBarWithBack(
         titleContentColor = Color.White,
         navigationIconContentColor = Color.White
     ),
-    onBackClick: () -> Unit
+    onBackClick: (() -> Unit)?
 ) {
     TopAppBar(
         title = {
@@ -68,11 +68,10 @@ fun AppBarWithBack(
             )
         },
         navigationIcon = {
-            IconButton(onClick = onBackClick) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back"
-                )
+            if (onBackClick != null) {
+                IconButton(onClick = onBackClick) {
+                    Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                }
             }
         },
         colors = colors,

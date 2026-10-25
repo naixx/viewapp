@@ -4,6 +4,7 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -12,6 +13,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -69,10 +72,9 @@ import kotlinx.datetime.format
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Instant
 
-/** One clip: its frames (download, playback, export) and info; [onBack] closes it. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ClipInfoScreen(clip: Clip, onBack: () -> Unit) {
+fun ClipInfoScreen(clip: Clip, onBack: (() -> Unit)?) {
     val mainViewModel = activityViewModel<MainViewModel>()
     val timelapseViewModel =
         assistedMetroViewModel<TimelapseViewModel, TimelapseViewModel.Factory>(key = clip.name) { create(clip) }
@@ -158,12 +160,7 @@ fun ClipInfoScreen(clip: Clip, onBack: () -> Unit) {
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .animateContentSize()
-            .verticalScroll(rememberScrollState())
-    ) {
+    val player: @Composable () -> Unit = {
         Box {
             TimelapsePlayer(
                 frames = frames,
@@ -185,7 +182,8 @@ fun ClipInfoScreen(clip: Clip, onBack: () -> Unit) {
                 modifier = Modifier.align(Alignment.TopStart)
             )
         }
-
+    }
+    val playback: @Composable () -> Unit = {
         if (frames.isNotEmpty()) {
             Spacer(modifier = Modifier.height(8.dp))
             FrameHistogramView(currentFrameIndex, Modifier.padding(horizontal = 16.dp)) {
@@ -222,11 +220,11 @@ fun ClipInfoScreen(clip: Clip, onBack: () -> Unit) {
                     onCancelExport = { export.cancel() },
                     onOpenVideo = { export.open(it) },
                 )
+                Spacer(modifier = Modifier.height(16.dp))
             }
         }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
+    }
+    val info: @Composable () -> Unit = {
         if (storedClipInfo != null) {
             InfoView(storedClipInfo!!)
         } else {
@@ -249,7 +247,30 @@ fun ClipInfoScreen(clip: Clip, onBack: () -> Unit) {
                     cacheSize = null
                 }
             )
-            Spacer(modifier = Modifier.height(16.dp))
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+    }
+
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        if (maxWidth >= 720.dp) {
+            Row(Modifier.fillMaxSize()) {
+                Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+                    Box(Modifier.widthIn(max = 800.dp)) { player() }
+                    playback()
+                }
+                Column(Modifier.width(360.dp).verticalScroll(rememberScrollState()).padding(top = 8.dp)) { info() }
+            }
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .animateContentSize()
+                    .verticalScroll(rememberScrollState())
+            ) {
+                player()
+                playback()
+                info()
+            }
         }
     }
 }

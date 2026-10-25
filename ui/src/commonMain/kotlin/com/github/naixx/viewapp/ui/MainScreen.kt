@@ -6,7 +6,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
+import androidx.compose.material3.adaptive.layout.calculatePaneScaffoldDirective
+import androidx.compose.material3.adaptive.navigation3.ListDetailSceneStrategy
+import androidx.compose.material3.adaptive.navigation3.rememberListDetailSceneStrategy
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -34,9 +38,14 @@ fun MainScreen() {
     MainScreen(conn, rememberNavigation())
 }
 
+@OptIn(ExperimentalMaterial3AdaptiveApi::class)
 @Composable
 fun MainScreen(conn: ConnectionState, nav: Navigation) {
-    val wide = currentWindowAdaptiveInfoV2().windowSizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_MEDIUM_LOWER_BOUND)
+    val window = currentWindowAdaptiveInfoV2()
+    val wide = window.windowSizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_MEDIUM_LOWER_BOUND)
+    val directive = calculatePaneScaffoldDirective(window)
+    val listDetail = rememberListDetailSceneStrategy<Route>(directive = directive)
+    val paned = directive.maxHorizontalPartitions > 1
     Scaffold(
         bottomBar = { if (!wide && nav.current !is ClipInfoRoute) TabBar(conn, nav) }
     ) { padding ->
@@ -46,14 +55,19 @@ fun MainScreen(conn: ConnectionState, nav: Navigation) {
                 backStack = nav.backStack,
                 onBack = { nav.back() },
                 modifier = Modifier.weight(1f),
+                sceneStrategies = listOf(listDetail),
                 entryDecorators = listOf(
                     rememberSaveableStateHolderNavEntryDecorator(),
                     rememberViewModelStoreNavEntryDecorator<Route>(LocalActivityViewModelStoreOwner.current),
                 ),
                 entryProvider = entryProvider {
                     entry<StatusRoute> { StatusScreen() }
-                    entry<ClipsRoute> { ClipsScreen(onOpen = nav::open) }
-                    entry<ClipInfoRoute> { ClipInfoScreen(it.clip, onBack = nav::back) }
+                    entry<ClipsRoute>(metadata = ListDetailSceneStrategy.listPane(detailPlaceholder = { NoClipSelected() })) {
+                        ClipsScreen(selected = (nav.current as? ClipInfoRoute)?.clip, onOpen = nav::open)
+                    }
+                    entry<ClipInfoRoute>(metadata = ListDetailSceneStrategy.detailPane()) {
+                        ClipInfoScreen(it.clip, onBack = if (paned) null else nav::back)
+                    }
                 },
             )
         }

@@ -55,7 +55,7 @@ class Navigation(private val clipsTab: MutableState<Boolean>, private val clips:
     }
 
     fun open(clip: Clip) {
-        clips.add(ClipInfoRoute(clip))
+        if (clips.last() is ClipInfoRoute) clips[clips.lastIndex] = ClipInfoRoute(clip) else clips.add(ClipInfoRoute(clip))
     }
 
     fun back() {
