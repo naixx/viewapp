@@ -19,6 +19,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
@@ -64,6 +65,7 @@ fun CameraControls(
     send: (OutMessage) -> Unit,
 ) {
     var liveViewOn by remember { mutableStateOf(false) }
+    var lastFrame by remember { mutableStateOf<Painter?>(null) }
 
     LaunchedEffect(liveViewOn) { if (liveViewOn) send(PreviewCmd()) }
     // Client-driven poll: re-request the next frame on every incoming thumbnail while live view is on.
@@ -80,14 +82,14 @@ fun CameraControls(
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         // Latest test-shot / live-view frame (CameraControls renders only when idle, so any frame here
         // is a manual capture/preview, not a running-timelapse frame).
-//        if (thumbnail != null && thumbnail.imageBase64.isNotBlank()) {
-            AsyncImage(
-                model = thumbnail,
-                contentDescription = null,
-                modifier = Modifier.fillMaxWidth().aspectRatio(3f / 2f),
-                contentScale = ContentScale.Fit,
-            )
-//                }
+        AsyncImage(
+            model = thumbnail,
+            contentDescription = null,
+            modifier = Modifier.fillMaxWidth().aspectRatio(3f / 2f),
+            contentScale = ContentScale.Fit,
+            placeholder = lastFrame,
+            onSuccess = { lastFrame = it.painter },
+        )
 
         // Exposure triangle on one row.
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -104,10 +106,10 @@ fun CameraControls(
             VSmallButton("+") { send(SetEvUp()) }
             Spacer(Modifier.weight(1f))
             Text("Focus", style = MaterialTheme.typography.labelMedium)
-            VSmallButton("◄◄") { send(ManualFocus("manual", -2, 1)) }
-            VSmallButton("◄") { send(ManualFocus("manual", -1, 1)) }
-            VSmallButton("►") { send(ManualFocus("manual", 1, 1)) }
-            VSmallButton("►►") { send(ManualFocus("manual", 2, 1)) }
+            VSmallButton("<<") { send(ManualFocus("manual", -2, 1)) }
+            VSmallButton("<") { send(ManualFocus("manual", -1, 1)) }
+            VSmallButton(">") { send(ManualFocus("manual", 1, 1)) }
+            VSmallButton(">>") { send(ManualFocus("manual", 2, 1)) }
         }
 
         // Actions.
