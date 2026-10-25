@@ -13,8 +13,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
-import cafe.adriel.voyager.core.annotation.ExperimentalVoyagerApi
-import cafe.adriel.voyager.navigator.*
 import coil3.ImageLoader
 import coil3.compose.setSingletonImageLoaderFactory
 import coil3.network.ktor3.KtorNetworkFetcherFactory
@@ -22,7 +20,6 @@ import coil3.request.crossfade
 import coil3.util.DebugLogger
 import androidx.activity.viewModels
 import com.github.naixx.logger.LL
-import com.github.naixx.viewapp.ui.components.LocalSuperNavigator
 import com.github.naixx.viewapp.ui.components.frames
 import com.github.naixx.viewapp.ui.theme.ViewAppTheme
 import com.github.naixx.viewapp.BuildConfig
@@ -66,7 +63,6 @@ class MainActivity(
     }
     private val viewModel: MainViewModel by viewModels { viewModelFactory }
 
-    @OptIn(ExperimentalVoyagerApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -95,16 +91,7 @@ class MainActivity(
 
                         val conn by viewModel.connectionState.collectAsState()
 
-                        Navigator(
-                            MainScreen, disposeBehavior = NavigatorDisposeBehavior( //to preserve models
-                                disposeNestedNavigators = false,
-                                disposeSteps = true
-                            )
-                        ) { superNav ->
-                            CompositionLocalProvider(LocalSuperNavigator provides superNav) {
-                                CurrentScreen()
-                            }
-                        }
+                        MainScreen()
                         val c = conn
                         if (c is ConnectionState.LoginRequired) {
                             LoginDialog(

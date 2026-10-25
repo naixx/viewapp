@@ -7,7 +7,7 @@ kotlin = "2.4.0"
 ksp = "2.3.9"
 agp = "9.2.1"
 room = "2.8.4"
-android-compileSdk = "36"
+android-compileSdk = "37" # Navigation 3 1.2.0 and lifecycle 2.11 compile against 37 (platform 37.0 is installed); targetSdk stays 36
 android-minSdk = "28" # AppComponentFactory (constructor-injected Activity/Service via metrox-android) needs API 28
 android-targetSdk = "36"
 androidx-activityCompose = "1.9.1"
@@ -46,7 +46,8 @@ slf4jSimple = "2.0.16"
 sonner = "0.4.0" # built against CMP 1.11.1; 0.3.8 (CMP 1.6) hit an IrLinkageError on wasm at the first toast and took the whole composition down
 startupRuntime = "1.2.0"
 statelyCommon = "2.0.7"
-voyager = "2.2.21-1.10.3" # Kotlin-CMP coupled versions since 2.x; built against lifecycle 2.10, which voyager-lifecycle-kmp needs (1.1.0-beta0x linked against the old core-bundle savedstate and failed at runtime on wasm)
+navigation3 = "1.2.0" # JetBrains navigation3-ui over the androidx KMP runtime (wasm included)
+lifecycleNavigation3 = "2.11.0" # the first lifecycle-viewmodel-navigation3 with a wasm variant; lifts lifecycle to 2.11
 coil = "3.5.0" # 3.6+ needs compileSdk 37 (platform 37.0 is installed); bump both together
 composeViewModel = "2.8.4"
 composeBom = "2025.02.00"
@@ -136,13 +137,10 @@ screen-button = { module = "com.github.MFlisar.ComposePreferences:screen-button"
 slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4jSimple" }
 sonner = { module = "io.github.dokar3:sonner", version.ref = "sonner" }
 compose-ui-tooling-preview = { module = "org.jetbrains.compose.ui:ui-tooling-preview", version.ref = "compose-plugin" } # multiplatform androidx.compose.ui.tooling.preview.Preview
-voyager-navigator = { module = "cafe.adriel.voyager:voyager-navigator", version.ref = "voyager" }
-voyager-tab-navigator = { module = "cafe.adriel.voyager:voyager-tab-navigator", version.ref = "voyager" }
-voyager-bottom-sheet-navigator = { module = "cafe.adriel.voyager:voyager-bottom-sheet-navigator", version.ref = "voyager" }
-voyager-transitions = { module = "cafe.adriel.voyager:voyager-transitions", version.ref = "voyager" }
-voyager-lifecycle-kmp = { module = "cafe.adriel.voyager:voyager-lifecycle-kmp", version.ref = "voyager" } # a ViewModelStore per Screen outside Android
 
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
+navigation3-ui = { module = "org.jetbrains.androidx.navigation3:navigation3-ui", version.ref = "navigation3" } # NavDisplay
+lifecycle-viewmodel-navigation3 = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-navigation3", version.ref = "lifecycleNavigation3" } # a ViewModelStore per NavEntry
 coil-network = { module = "io.coil-kt.coil3:coil-network-ktor3", version.ref = "coil" }
 
 

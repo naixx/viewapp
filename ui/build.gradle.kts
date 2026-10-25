@@ -12,6 +12,7 @@ plugins {
     alias(libs.plugins.jetbrainsCompose)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.metro) // AppViewModelFactory contributes itself to AppScope
+    alias(libs.plugins.kotlinSerialization) // the navigation routes are @Serializable (the back stack survives a config change)
 }
 
 kotlin {
@@ -29,8 +30,8 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             api(project(":core")) // the components render :network message types; :core brings :network as api
-            api(libs.voyager.navigator) // SuperNav exposes Navigator
-            api(libs.voyager.tab.navigator) // MainScreen: the Status / Clips tabs
+            api(libs.navigation3.ui) // MainScreen: NavDisplay over the back stack; the shells compose MainScreen()
+            api(libs.lifecycle.viewmodel.navigation3) // a ViewModelStore per NavEntry: screenViewModel()
             api(compose.runtime)
             api(compose.foundation)
             api(compose.material3)

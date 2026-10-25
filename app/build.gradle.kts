@@ -108,7 +108,6 @@ dependencies {
     implementation(libs.androidx.compose.lifecycle)
     implementation(libs.lifecycle.viewModelKtx)
 
-    implementation(libs.voyager.navigator) // MainActivity hosts the Navigator; the rest of Voyager comes with :ui
 
     implementation(libs.kmp.libs.logger)
     implementation(libs.kmp.libs.prefs)
@@ -131,7 +130,7 @@ dependencies {
     testImplementation(libs.mockk)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.jetbrains.kotlin.test.junit) // used to come with koin-test
-    testImplementation(libs.androidx.ui.test.junit4) // ViewModelScopesTest: Compose + Voyager under Robolectric
+    testImplementation(libs.androidx.ui.test.junit4) // ViewModelScopesTest: Compose + Navigation 3 under Robolectric
     testImplementation(libs.ktor.client.core) // RobolectricTest builds its own client
 
     androidTestImplementation(libs.jetbrains.kotlin.test.junit)

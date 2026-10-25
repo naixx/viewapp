@@ -46,9 +46,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import cafe.adriel.voyager.core.screen.Screen
-import cafe.adriel.voyager.navigator.LocalNavigator
-import cafe.adriel.voyager.navigator.currentOrThrow
 import com.github.naixx.viewapp.ui.components.AppBarWithBack
 import com.github.naixx.viewapp.ui.components.FrameHistogramView
 import com.github.naixx.viewapp.ui.components.OnConnectedEffect
@@ -72,190 +69,187 @@ import kotlinx.datetime.format
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Instant
 
-class ClipInfoScreen(val clip: Clip) : Screen {
+/** One clip: its frames (download, playback, export) and info; [onBack] closes it. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ClipInfoScreen(clip: Clip, onBack: () -> Unit) {
+    val mainViewModel = activityViewModel<MainViewModel>()
+    val timelapseViewModel =
+        assistedMetroViewModel<TimelapseViewModel, TimelapseViewModel.Factory>(key = clip.name) { create(clip) }
+    val conn by mainViewModel.connectionState.collectAsState()
+    val storedClipInfo by timelapseViewModel.clipInfo.collectAsState()
+    val downloadedFrames by timelapseViewModel.downloadedFrames.collectAsState()
+    val currentFrameIndex by timelapseViewModel.currentFrameIndex.collectAsState()
+    val isPlaying by timelapseViewModel.isPlaying.collectAsState()
+    val isDownloading by timelapseViewModel.isDownloading.collectAsState()
+    val intervalStatus by mainViewModel.intervalometerStatus.collectAsState()
 
-    @OptIn(ExperimentalMaterial3Api::class)
-    @Composable
-    override fun Content() {
-        val mainViewModel = activityViewModel<MainViewModel>()
-        val timelapseViewModel =
-            assistedMetroViewModel<TimelapseViewModel, TimelapseViewModel.Factory>(key = clip.name) { create(clip) }
-        val conn by mainViewModel.connectionState.collectAsState()
-        val storedClipInfo by timelapseViewModel.clipInfo.collectAsState()
-        val navigator = LocalNavigator.currentOrThrow
-        val downloadedFrames by timelapseViewModel.downloadedFrames.collectAsState()
-        val currentFrameIndex by timelapseViewModel.currentFrameIndex.collectAsState()
-        val isPlaying by timelapseViewModel.isPlaying.collectAsState()
-        val isDownloading by timelapseViewModel.isDownloading.collectAsState()
-        val intervalStatus by mainViewModel.intervalometerStatus.collectAsState()
+    // "go live" only has meaning while this very clip is the time-lapse currently being captured.
+    val isLive = intervalStatus?.status?.running == true &&
+            intervalStatus?.status?.tlName?.equals(clip.name, ignoreCase = true) == true
 
-        // "go live" only has meaning while this very clip is the time-lapse currently being captured.
-        val isLive = intervalStatus?.status?.running == true &&
-                intervalStatus?.status?.tlName?.equals(clip.name, ignoreCase = true) == true
+    val frames = downloadedFrames
+    val progress = remember(frames) {
+        if (clip.frames > 0 && frames.isNotEmpty()) {
+            // Clamp: during a running time-lapse the live frame count can exceed the stale
+            // clip.frames, which would otherwise push progress past 1f and hide the controls.
+            (frames.size.toFloat() / clip.frames).coerceAtMost(1f)
+        } else if (frames.isNotEmpty()) {
+            1f // If we don't know total frames but have some downloaded
+        } else {
+            0f
+        }
+    }
 
-        val frames = downloadedFrames
-        val progress = remember(frames) {
-            if (clip.frames > 0 && frames.isNotEmpty()) {
-                // Clamp: during a running time-lapse the live frame count can exceed the stale
-                // clip.frames, which would otherwise push progress past 1f and hide the controls.
-                (frames.size.toFloat() / clip.frames).coerceAtMost(1f)
-            } else if (frames.isNotEmpty()) {
-                1f // If we don't know total frames but have some downloaded
-            } else {
-                0f
+    var cacheSize by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) {
+        // The store does its file work on its own dispatcher; nothing to switch to here.
+        timelapseViewModel.checkExistingFrames(clip.frames)
+        val existingFrames = timelapseViewModel.downloadedFrames.value
+        if (existingFrames.isNotEmpty()) {
+            val size = timelapseViewModel.getCacheSize()
+            cacheSize = formatFileSize(size)
+        }
+    }
+
+    LaunchedEffect(frames.size) {
+        if (frames.isNotEmpty()) {
+            val size = timelapseViewModel.getCacheSize()
+            cacheSize = formatFileSize(size)
+        }
+    }
+
+    DisposableEffect(key1 = Unit) {
+        onDispose {
+            timelapseViewModel.togglePlayback(false)
+            if (progress > 0f && progress < 1f) {
+                timelapseViewModel.stopDownload()
             }
         }
+    }
 
-        var cacheSize by remember { mutableStateOf<String?>(null) }
-
-        LaunchedEffect(Unit) {
-            // The store does its file work on its own dispatcher; nothing to switch to here.
-            timelapseViewModel.checkExistingFrames(clip.frames)
-            val existingFrames = timelapseViewModel.downloadedFrames.value
-            if (existingFrames.isNotEmpty()) {
-                val size = timelapseViewModel.getCacheSize()
-                cacheSize = formatFileSize(size)
+    LaunchedEffect(isPlaying, currentFrameIndex, frames.size) {
+        if (isPlaying && frames.isNotEmpty()) {
+            while (isPlaying) {
+                delay(33)
+                // Advance by position in the (possibly gappy) downloaded set, wrapping at the end.
+                val pos = frames.indexOf(currentFrameIndex)
+                val nextFrame = if (pos < 0 || pos >= frames.size - 1) frames.first() else frames[pos + 1]
+                timelapseViewModel.setCurrentFrame(nextFrame)
             }
         }
+    }
 
-        LaunchedEffect(frames.size) {
-            if (frames.isNotEmpty()) {
-                val size = timelapseViewModel.getCacheSize()
-                cacheSize = formatFileSize(size)
-            }
-        }
+    OnConnectedEffect(conn) {
+        timelapseViewModel.clipInfo()
+    }
 
-        DisposableEffect(key1 = Unit) {
-            onDispose {
-                timelapseViewModel.togglePlayback(false)
-                if (progress > 0f && progress < 1f) {
-                    timelapseViewModel.stopDownload()
+    timelapseViewModel.export?.let { export ->
+        LaunchedEffect(export) {
+            export.result.drop(1).collect { result -> // the current value is an earlier export's
+                when (result) {
+                    is ExportResult.Success -> EventBus.success("Video exported successfully")
+                    is ExportResult.Error   -> EventBus.error("Export failed: ${result.message}")
+                    ExportResult.Canceled   -> EventBus.info("Export was canceled")
+                    null                    -> Unit
                 }
             }
         }
+    }
 
-        LaunchedEffect(isPlaying, currentFrameIndex, frames.size) {
-            if (isPlaying && frames.isNotEmpty()) {
-                while (isPlaying) {
-                    delay(33)
-                    // Advance by position in the (possibly gappy) downloaded set, wrapping at the end.
-                    val pos = frames.indexOf(currentFrameIndex)
-                    val nextFrame = if (pos < 0 || pos >= frames.size - 1) frames.first() else frames[pos + 1]
-                    timelapseViewModel.setCurrentFrame(nextFrame)
-                }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .animateContentSize()
+            .verticalScroll(rememberScrollState())
+    ) {
+        Box {
+            TimelapsePlayer(
+                frames = frames,
+                progress = progress,
+                currentFrameIndex = currentFrameIndex,
+                isPlaying = isPlaying,
+                isLive = isLive,
+                isDownloading = isDownloading,
+                clip = clip.name,
+                onPlayPause = { timelapseViewModel.togglePlayback(!isPlaying) },
+                onSeek = { timelapseViewModel.setCurrentFrame(it) },
+                onScrubStart = { timelapseViewModel.togglePlayback(false) },
+                onGoLive = { timelapseViewModel.goLive() }
+            )
+            AppBarWithBack(
+                title = clip.name,
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
+                onBackClick = onBack,
+                modifier = Modifier.align(Alignment.TopStart)
+            )
+        }
+
+        if (frames.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            FrameHistogramView(currentFrameIndex, Modifier.padding(horizontal = 16.dp)) {
+                timelapseViewModel.histogram(it)
             }
         }
 
-        OnConnectedEffect(conn) {
-            timelapseViewModel.clipInfo()
+        Spacer(modifier = Modifier.height(8.dp))
+
+        if (frames.isNotEmpty()) {
+            PlayerTimeInfo(frames.size, currentFrameIndex)
         }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        PlayerControls(
+            progress = progress,
+            frames = frames,
+            isDownloading = isDownloading,
+            onDownload = { timelapseViewModel.downloadFrames(conn) },
+            onCancelDownload = { timelapseViewModel.stopDownload() }
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
 
         timelapseViewModel.export?.let { export ->
-            LaunchedEffect(export) {
-                export.result.drop(1).collect { result -> // the current value is an earlier export's
-                    when (result) {
-                        is ExportResult.Success -> EventBus.success("Video exported successfully")
-                        is ExportResult.Error   -> EventBus.error("Export failed: ${result.message}")
-                        ExportResult.Canceled   -> EventBus.info("Export was canceled")
-                        null                    -> Unit
-                    }
-                }
+            if (frames.isNotEmpty()) {
+                val exportProgress by export.progress.collectAsState()
+                val lastExport by export.result.collectAsState()
+                ExportControls(
+                    exportProgress = exportProgress,
+                    lastExported = (lastExport as? ExportResult.Success)?.takeIf { it.clip == clip.name },
+                    onExport = { export.export(clip.name, frames) },
+                    onCancelExport = { export.cancel() },
+                    onOpenVideo = { export.open(it) },
+                )
             }
         }
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .animateContentSize()
-                .verticalScroll(rememberScrollState())
-        ) {
-            Box {
-                TimelapsePlayer(
-                    frames = frames,
-                    progress = progress,
-                    currentFrameIndex = currentFrameIndex,
-                    isPlaying = isPlaying,
-                    isLive = isLive,
-                    isDownloading = isDownloading,
-                    clip = clip.name,
-                    onPlayPause = { timelapseViewModel.togglePlayback(!isPlaying) },
-                    onSeek = { timelapseViewModel.setCurrentFrame(it) },
-                    onScrubStart = { timelapseViewModel.togglePlayback(false) },
-                    onGoLive = { timelapseViewModel.goLive() }
-                )
-                AppBarWithBack(
-                    title = clip.name,
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
-                    onBackClick = { navigator.pop() },
-                    modifier = Modifier.align(Alignment.TopStart)
-                )
-            }
+        Spacer(modifier = Modifier.height(16.dp))
 
-            if (frames.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                FrameHistogramView(currentFrameIndex, Modifier.padding(horizontal = 16.dp)) {
-                    timelapseViewModel.histogram(it)
+        if (storedClipInfo != null) {
+            InfoView(storedClipInfo!!)
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
+        }
+
+        if (frames.isNotEmpty() && progress == 1f) {
+            Spacer(modifier = Modifier.height(16.dp))
+            CacheManagementCard(
+                cacheSize = cacheSize,
+                onDeleteCache = {
+                    timelapseViewModel.deleteCache()
+                    cacheSize = null
                 }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            if (frames.isNotEmpty()) {
-                PlayerTimeInfo(frames.size, currentFrameIndex)
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            PlayerControls(
-                progress = progress,
-                frames = frames,
-                isDownloading = isDownloading,
-                onDownload = { timelapseViewModel.downloadFrames(conn) },
-                onCancelDownload = { timelapseViewModel.stopDownload() }
             )
-
             Spacer(modifier = Modifier.height(16.dp))
-
-            timelapseViewModel.export?.let { export ->
-                if (frames.isNotEmpty()) {
-                    val exportProgress by export.progress.collectAsState()
-                    val lastExport by export.result.collectAsState()
-                    ExportControls(
-                        exportProgress = exportProgress,
-                        lastExported = (lastExport as? ExportResult.Success)?.takeIf { it.clip == clip.name },
-                        onExport = { export.export(clip.name, frames) },
-                        onCancelExport = { export.cancel() },
-                        onOpenVideo = { export.open(it) },
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            if (storedClipInfo != null) {
-                InfoView(storedClipInfo!!)
-            } else {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator()
-                }
-            }
-
-            if (frames.isNotEmpty() && progress == 1f) {
-                Spacer(modifier = Modifier.height(16.dp))
-                CacheManagementCard(
-                    cacheSize = cacheSize,
-                    onDeleteCache = {
-                        timelapseViewModel.deleteCache()
-                        cacheSize = null
-                    }
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-            }
         }
     }
 }

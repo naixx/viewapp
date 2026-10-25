@@ -8,8 +8,9 @@ import dev.zacsweers.metrox.viewmodel.metroViewModel
 
 /*
  * Two scopes, named at the call site. A bare metroViewModel() would take whatever LocalViewModelStoreOwner is current
- * and hide which of the two is meant — on Android Voyager gives every Screen its own store (AndroidScreenLifecycleOwner),
- * so "shared" and "per screen" differ. Both build the view model through the graph's factory (LocalMetroViewModelFactory).
+ * and hide which of the two is meant — Navigation 3 gives every NavEntry its own store (MainScreen's
+ * rememberViewModelStoreNavEntryDecorator), so "shared" and "per screen" differ. Both build the view model through the
+ * graph's factory (LocalMetroViewModelFactory).
  */
 
 /**
@@ -30,9 +31,9 @@ inline fun <reified VM : ViewModel> activityViewModel(): VM =
     metroViewModel(viewModelStoreOwner = LocalActivityViewModelStoreOwner.current)
 
 /**
- * A view model owned by the current screen: Voyager's per-`Screen` store, cleared when the screen leaves the navigator —
- * what `rememberScreenModel` used to give (`ClipsViewModel`). Per-clip view models use `assistedMetroViewModel(key =
- * clip.name)` on the same store.
+ * A view model owned by the current screen: the `NavEntry`'s store (Navigation 3's `ViewModelStoreNavEntryDecorator`, the
+ * same on every platform), cleared when the entry leaves the back stack (`ClipsViewModel`). Per-clip view models use
+ * `assistedMetroViewModel(key = clip.name)` on the same store.
  */
 @Composable
 inline fun <reified VM : ViewModel> screenViewModel(key: String? = null): VM = metroViewModel(key = key)

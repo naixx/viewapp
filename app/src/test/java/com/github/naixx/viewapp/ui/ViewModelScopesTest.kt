@@ -3,13 +3,17 @@ package com.github.naixx.viewapp.ui
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
+import androidx.navigation3.runtime.NavKey
+import androidx.navigation3.runtime.entryProvider
+import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
+import androidx.navigation3.ui.NavDisplay
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import cafe.adriel.voyager.core.screen.Screen
-import cafe.adriel.voyager.core.screen.ScreenKey
-import cafe.adriel.voyager.navigator.CurrentScreen
-import cafe.adriel.voyager.navigator.Navigator
 import com.github.naixx.viewapp.utils.LocalActivityViewModelStoreOwner
 import com.github.naixx.viewapp.utils.activityViewModel
 import com.github.naixx.viewapp.utils.screenViewModel
@@ -28,9 +32,9 @@ import kotlin.test.assertTrue
 
 /**
  * The two view-model scopes the screens name (`:ui`, `utils/ViewModels.kt`): `activityViewModel()` is one instance for the
- * whole Activity, `screenViewModel()` is one per Voyager screen and is cleared when the screen leaves the navigator
- * (what `rememberScreenModel` used to give). The factory is a stub, so this is about the scopes, not the app graph
- * (`AppGraphTest` covers that).
+ * whole Activity, `screenViewModel()` is one per Navigation 3 entry and is cleared when the entry leaves the back stack —
+ * the decorators MainScreen uses, over a two-entry back stack. The factory is a stub, so this is about the scopes, not
+ * the app graph.
  */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [30])
@@ -60,38 +64,50 @@ class ViewModelScopesTest {
         )
     }
 
-    /** A screen that records the instances it was given; two with different keys stand for two screens. */
-    private class Probe(override val key: ScreenKey) : Screen {
+    private data object First : NavKey
+    private data object Second : NavKey
+
+    /** A screen that records the instances it was given; one per entry. */
+    private class Probe {
 
         var shared: SharedViewModel? = null
         var own: PerScreenViewModel? = null
 
         @Composable
-        override fun Content() {
+        fun Content() {
             shared = activityViewModel<SharedViewModel>()
             own = screenViewModel<PerScreenViewModel>()
         }
     }
 
-    private val first = Probe("first")
-    private val second = Probe("second")
-    private lateinit var navigator: Navigator
+    private val first = Probe()
+    private val second = Probe()
+    private lateinit var backStack: SnapshotStateList<NavKey>
 
     /** Shows [first], then pushes [second] on top of it. */
     private fun showBoth() {
         compose.setContent {
+            backStack = remember { mutableStateListOf<NavKey>(First) }
             CompositionLocalProvider(
                 LocalMetroViewModelFactory provides factory,
                 LocalActivityViewModelStoreOwner provides compose.activity, // what MainActivity does
             ) {
-                Navigator(first) { nav ->
-                    navigator = nav
-                    CurrentScreen()
-                }
+                NavDisplay(
+                    backStack = backStack,
+                    onBack = { backStack.removeLastOrNull() },
+                    entryDecorators = listOf(
+                        rememberSaveableStateHolderNavEntryDecorator(),
+                        rememberViewModelStoreNavEntryDecorator<NavKey>(LocalActivityViewModelStoreOwner.current),
+                    ),
+                    entryProvider = entryProvider {
+                        entry<First> { first.Content() }
+                        entry<Second> { second.Content() }
+                    },
+                )
             }
         }
         compose.waitForIdle()
-        compose.runOnUiThread { navigator.push(second) }
+        compose.runOnUiThread { backStack.add(Second) }
         compose.waitForIdle()
     }
 
@@ -113,7 +129,7 @@ class ViewModelScopesTest {
     @Test
     fun `popping a screen clears its own view model and keeps the shared one`() {
         showBoth()
-        compose.runOnUiThread { navigator.pop() }
+        compose.runOnUiThread { backStack.removeLastOrNull() }
         compose.waitForIdle()
         assertTrue(second.own!!.cleared, "the popped screen's view model is cleared")
         assertFalse(first.own!!.cleared, "the screen underneath keeps its own")
