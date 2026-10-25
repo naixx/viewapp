@@ -12,7 +12,11 @@ import io.ktor.client.plugins.websocket.*
 import io.ktor.client.request.get
 import io.ktor.websocket.Frame
 import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.serialization.json.Json
 
 const val ACCESS_POINT_URL = "http://10.0.0.1/"
@@ -41,14 +45,24 @@ class WebSocketClient(
     // Auto-login talks to the host that just answered the probe, before any connection state exists.
     private val apis = KtorfitClientProvider(client)
 
-    var session: DefaultClientWebSocketSession? = null
-    val connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
+    private var session: DefaultClientWebSocketSession? = null
 
-    suspend fun startWebSocket(
-        priorityUrls: List<String>,
-        scanUrls: List<String>,
-        onMessage: (BaseMessage) -> Unit
-    ) {
+    val connectionState: StateFlow<ConnectionState>
+        field = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
+
+    val messages: SharedFlow<BaseMessage>
+        field = MutableSharedFlow<BaseMessage>(extraBufferCapacity = 256, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+
+    suspend fun startWebSocket(priorityUrls: List<String>, scanUrls: List<String>) {
+        try {
+            reconnect(priorityUrls, scanUrls)
+        } catch (e: CancellationException) {
+            connectionState.value = ConnectionState.Disconnected
+            throw e
+        }
+    }
+
+    private suspend fun reconnect(priorityUrls: List<String>, scanUrls: List<String>) {
         var useLocalConnection = true
 
         while (true) {
@@ -71,7 +85,7 @@ class WebSocketClient(
                         foundServer.fromUrl?.let {
                             storageProvider.lastSuccessfulAddress(it)
                         }
-                        actualConnect(foundServer, onMessage)
+                        actualConnect(foundServer)
                     }
 
                     is AddressResponse.LoginRequired -> {
@@ -84,7 +98,7 @@ class WebSocketClient(
                             storageProvider.session(auth.session)
                             val address = api.socketUrl(foundServer.fromUrl + "socket/address")
                             if (address is AddressResponse.Address)
-                                actualConnect(address, onMessage)
+                                actualConnect(address)
                             else {
                                 connectionState.value = ConnectionState.LoginRequired(foundServer)
                                 break
@@ -111,10 +125,7 @@ class WebSocketClient(
         }
     }
 
-    private suspend fun actualConnect(
-        foundServer: Address,
-        onMessage: (BaseMessage) -> Unit
-    ) {
+    private suspend fun actualConnect(foundServer: Address) {
         client.webSocket(foundServer.address) {
             handshake(storageProvider.session()).forEach { sendSerialized(it) }
             session = this
@@ -137,8 +148,7 @@ class WebSocketClient(
             }
             while (isActive) {
                 try {
-                    val message = receiveDeserialized<BaseMessage>()
-                    onMessage(message)
+                    messages.tryEmit(receiveDeserialized<BaseMessage>())
                 } catch (e: kotlinx.coroutines.channels.ClosedReceiveChannelException) {
                     LL.e(e)
                     throw e

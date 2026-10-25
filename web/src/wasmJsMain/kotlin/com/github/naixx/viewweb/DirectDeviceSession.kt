@@ -1,6 +1,5 @@
 package com.github.naixx.viewweb
 
-import com.github.naixx.logger.LL
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.SingleIn
@@ -8,9 +7,8 @@ import github.naixx.core.DeviceSession
 import github.naixx.network.*
 import kotlinx.browser.window
 import kotlinx.coroutines.*
-import kotlinx.coroutines.channels.BufferOverflow
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -27,7 +25,7 @@ class DirectDeviceSession(private val client: WebSocketClient) : DeviceSession {
 
     override val state: StateFlow<ConnectionState> get() = client.connectionState
 
-    override val messages = MutableSharedFlow<BaseMessage>(extraBufferCapacity = 256, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    override val messages: SharedFlow<BaseMessage> get() = client.messages
 
     override val controllable = false
 
@@ -36,16 +34,13 @@ class DirectDeviceSession(private val client: WebSocketClient) : DeviceSession {
     override fun connect() {
         if (connectionJob?.isActive == true) return
         connectionJob = scope.launch {
-            client.startWebSocket(listOf(window.location.origin + "/"), emptyList()) { message ->
-                if (!messages.tryEmit(message)) LL.w("message dropped: ${message.type}")
-            }
+            client.startWebSocket(listOf(window.location.origin + "/"), emptyList())
         }
     }
 
     override fun disconnect() {
         connectionJob?.cancel()
         connectionJob = null
-        client.connectionState.value = ConnectionState.Disconnected
     }
 
     override fun send(message: OutMessage) {

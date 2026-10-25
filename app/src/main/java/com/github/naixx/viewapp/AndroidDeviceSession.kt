@@ -16,9 +16,8 @@ import dev.zacsweers.metro.SingleIn
 import github.naixx.core.DeviceSession
 import github.naixx.network.*
 import kotlinx.coroutines.*
-import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.awaitClose
-import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.callbackFlow
@@ -37,9 +36,7 @@ class AndroidDeviceSession(
 
     override val state: StateFlow<ConnectionState> get() = client.connectionState
 
-    // Emitted from the receive loop without suspending, so the order is kept; the buffer only matters if the
-    // collector (DeviceState) stalls.
-    override val messages = MutableSharedFlow<BaseMessage>(extraBufferCapacity = 256, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    override val messages: SharedFlow<BaseMessage> get() = client.messages
 
     override val controllable = true
 
@@ -62,7 +59,6 @@ class AndroidDeviceSession(
 
     override fun disconnect() {
         context.stopService(service)
-        client.connectionState.value = ConnectionState.Disconnected
     }
 
     override fun send(message: OutMessage) {
@@ -73,13 +69,6 @@ class AndroidDeviceSession(
         val priorityUrls = Prefs.lastConnectedIp.toList()
         val scanUrls = generateLocalServer(context) + WIFI_URL
         LL.i("connecting; known: ${priorityUrls.joinToString()}, scanning ${scanUrls.size} hosts")
-        try {
-            client.startWebSocket(priorityUrls, scanUrls) { message ->
-                if (!messages.tryEmit(message)) LL.w("message dropped: ${message.type}")
-            }
-        } catch (e: CancellationException) {
-            client.connectionState.value = ConnectionState.Disconnected
-            throw e
-        }
+        client.startWebSocket(priorityUrls, scanUrls)
     }
 }

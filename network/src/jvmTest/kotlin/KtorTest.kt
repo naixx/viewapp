@@ -124,16 +124,10 @@ class KtorTest {
     @Test
     fun `connect ws`() = runLive {
         val messageReceived = CompletableDeferred<BaseMessage>()
+        val collector = webSocketClient.messages.onEach { messageReceived.complete(it) }.launchIn(this)
 
         val webSocketJob = launch(Dispatchers.Default.limitedParallelism(1)) {
-            // Base URLs: scanHosts' probe appends socket/address itself. The unit is on the LAN or its own hotspot.
-            webSocketClient.startWebSocket(listOf(WIFI_URL, ACCESS_POINT_URL), emptyList()) { message ->
-                // Complete the deferred when any message is received
-                if (!messageReceived.isCompleted) {
-                    println("---->$message")
-                    messageReceived.complete(message)
-                }
-            }
+            webSocketClient.startWebSocket(listOf(WIFI_URL, ACCESS_POINT_URL), emptyList())
         }
 
         withContext(Dispatchers.Default.limitedParallelism(1)) {
@@ -145,6 +139,7 @@ class KtorTest {
             }
         }
         webSocketJob.cancel()
+        collector.cancel()
     }
 }
 
