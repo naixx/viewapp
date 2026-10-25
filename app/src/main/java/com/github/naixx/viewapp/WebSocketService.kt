@@ -77,6 +77,11 @@ class WebSocketService(
         return START_STICKY
     }
 
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        LL.w("foreground time limit reached, type $fgsType")
+        session.disconnect()
+    }
+
     private fun createNotification(text: String, iconRes: Int = R.drawable.ic_popup_sync): Notification {
         val stopIntent = Intent(this, WebSocketService::class.java).apply {
             action = ACTION_STOP_SERVICE
