@@ -48,7 +48,6 @@ import com.github.naixx.viewapp.ui.components.FrameProgressBar
 import com.github.naixx.viewapp.ui.components.HistogramView
 import com.github.naixx.viewapp.ui.components.LiveEditButton
 import com.github.naixx.viewapp.ui.components.LiveSelectButton
-import com.github.naixx.viewapp.ui.components.OnConnectedEffect
 import com.github.naixx.viewapp.ui.components.Opt
 import com.github.naixx.viewapp.ui.components.RampInfo
 import com.github.naixx.viewapp.ui.components.TimelapsePlayer
@@ -116,9 +115,6 @@ fun StatusScreen() {
     val subnetLabel by viewModel.subnetLabel.collectAsState()
     val notifications by viewModel.notifications.collectAsState()
 
-    OnConnectedEffect(conn) {
-        viewModel.send(Get("program"))
-    }
     LaunchedEffect(program) { programVm.onDeviceProgram(program?.raw) }
 
     val send: (OutMessage) -> Unit = { viewModel.send(it) }

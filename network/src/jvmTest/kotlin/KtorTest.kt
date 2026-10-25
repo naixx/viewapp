@@ -127,11 +127,7 @@ class KtorTest {
 
         val webSocketJob = launch(Dispatchers.Default.limitedParallelism(1)) {
             // Base URLs: scanHosts' probe appends socket/address itself. The unit is on the LAN or its own hotspot.
-            webSocketClient.startWebSocket(listOf(WIFI_URL, ACCESS_POINT_URL), emptyList(), { ses, state ->
-                ses.sendSerialized(Session(storage.session() ?: ""))
-                ses.sendSerialized(Get("camera"))
-                ses.sendSerialized(Ping())
-            }) { message ->
+            webSocketClient.startWebSocket(listOf(WIFI_URL, ACCESS_POINT_URL), emptyList()) { message ->
                 // Complete the deferred when any message is received
                 if (!messageReceived.isCompleted) {
                     println("---->$message")

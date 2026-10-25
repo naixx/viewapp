@@ -74,7 +74,7 @@ class AndroidDeviceSession(
         val scanUrls = generateLocalServer(context) + WIFI_URL
         LL.i("connecting; known: ${priorityUrls.joinToString()}, scanning ${scanUrls.size} hosts")
         try {
-            client.startWebSocket(priorityUrls, scanUrls, { _, _ -> }) { message ->
+            client.startWebSocket(priorityUrls, scanUrls) { message ->
                 if (!messages.tryEmit(message)) LL.w("message dropped: ${message.type}")
             }
         } catch (e: CancellationException) {

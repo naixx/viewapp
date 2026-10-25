@@ -12,25 +12,10 @@ import kotlin.io.encoding.Base64
 import kotlin.reflect.KClass
 import kotlin.time.Clock
 
-/**
- * What the device last said, typed: one [StateFlow] per message class (null until the first message and again
- * after a disconnect), capture errors as a stream for the UI to toast and as [notifications] that stay until read,
- * and the device's clock. Owns the handshake: after every (re)connect it authenticates the session and asks for
- * the camera, settings, battery and program, so no shell has to know the protocol.
- *
- * Also caches the frames of a running time-lapse as they arrive (`thumbnail` messages) in the [FrameStore], once,
- * for every consumer, and announces each on [frameWritten].
- *
- * Lives as long as the session (one per app / page), not as long as a screen: the Android service keeps the
- * connection while the UI is gone, and the state should still be there when the UI comes back.
- *
- * @param clock the client's clock (notification times, the device-clock offset); tests pass a fake.
- */
 @Inject
 @SingleIn(AppScope::class)
 class DeviceState(
     private val session: DeviceSession,
-    private val storage: StorageProvider,
     private val frames: FrameStore,
     private val scope: CoroutineScope,
     private val clock: Clock = Clock.System,
@@ -70,11 +55,7 @@ class DeviceState(
     init {
         session.messages.onEach(::onMessage).launchIn(scope)
         session.state.onEach { state ->
-            when (state) {
-                is ConnectionState.Connected -> handshake()
-                ConnectionState.Disconnected -> messageFlows.values.forEach { it.value = null }
-                else -> Unit
-            }
+            if (state == ConnectionState.Disconnected) messageFlows.values.forEach { it.value = null }
             if (state !is ConnectionState.Connected) deviceClock.onDisconnected()
         }.launchIn(scope)
     }
@@ -88,14 +69,6 @@ class DeviceState(
 
     fun clearNotifications() {
         notifications.value = emptyList()
-    }
-
-    private fun handshake() {
-        session.send(Session(storage.session() ?: ""))
-        session.send(Get("camera"))
-        session.send(Get("settings"))
-        session.send(Get("battery"))
-        session.send(Get("program"))
     }
 
     private fun onMessage(message: BaseMessage) {

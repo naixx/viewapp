@@ -27,6 +27,9 @@ sealed interface ConnectionState {
     data class Connected(val address: Address, val isLocal: Boolean) : ConnectionState
 }
 
+internal fun handshake(session: String?): List<OutMessage> =
+    listOf(Session(session ?: ""), Get("camera"), Get("settings"), Get("battery"), Get("program"))
+
 @Inject
 @SingleIn(AppScope::class)
 class WebSocketClient(
@@ -44,7 +47,6 @@ class WebSocketClient(
     suspend fun startWebSocket(
         priorityUrls: List<String>,
         scanUrls: List<String>,
-        onCreate: suspend (DefaultClientWebSocketSession, ConnectionState.Connected) -> Unit,
         onMessage: (BaseMessage) -> Unit
     ) {
         var useLocalConnection = true
@@ -69,7 +71,7 @@ class WebSocketClient(
                         foundServer.fromUrl?.let {
                             storageProvider.lastSuccessfulAddress(it)
                         }
-                        actualConnect(foundServer, onCreate, onMessage)
+                        actualConnect(foundServer, onMessage)
                     }
 
                     is AddressResponse.LoginRequired -> {
@@ -82,7 +84,7 @@ class WebSocketClient(
                             storageProvider.session(auth.session)
                             val address = api.socketUrl(foundServer.fromUrl + "socket/address")
                             if (address is AddressResponse.Address)
-                                actualConnect(address, onCreate, onMessage)
+                                actualConnect(address, onMessage)
                             else {
                                 connectionState.value = ConnectionState.LoginRequired(foundServer)
                                 break
@@ -111,14 +113,12 @@ class WebSocketClient(
 
     private suspend fun actualConnect(
         foundServer: Address,
-        onCreate: suspend (DefaultClientWebSocketSession, ConnectionState.Connected) -> Unit,
         onMessage: (BaseMessage) -> Unit
     ) {
         client.webSocket(foundServer.address) {
+            handshake(storageProvider.session()).forEach { sendSerialized(it) }
             session = this
-            val newState = ConnectionState.Connected(foundServer, true/*TODO*/)
-            connectionState.value = newState
-            onCreate(this, newState)
+            connectionState.value = ConnectionState.Connected(foundServer, true)
 
             launch {
                 try {

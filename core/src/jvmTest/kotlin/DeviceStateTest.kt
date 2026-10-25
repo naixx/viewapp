@@ -28,20 +28,12 @@ class DeviceStateTest {
         fun receive(message: BaseMessage) = check(messages.tryEmit(message))
     }
 
-    private val storage = object : StorageProvider {
-        override fun session() = "sess-1"
-        override fun session(session: String) = Unit
-        override fun lastSuccessfulAddress(address: String) = Unit
-        override fun email() = null
-        override fun password() = null
-    }
-
     private val connected = ConnectionState.Connected(Address("ws://10.0.0.1:8101", "http://10.0.0.1/"), true)
     private val session = FakeSession()
     private val scope = CoroutineScope(UnconfinedTestDispatcher())
     private val time = FakeClock(1_000_000)
     private val frames = MemoryFrameStore()
-    private val state = DeviceState(session, storage, frames, scope, clock = time)
+    private val state = DeviceState(session, frames, scope, clock = time)
 
     @AfterTest
     fun tearDown() = scope.cancel()
@@ -72,21 +64,6 @@ class DeviceStateTest {
 
         assertNull(state.battery.value)
         assertNull(state.intervalometerStatus.value)
-    }
-
-    @Test
-    fun everyConnectSendsTheHandshake() {
-        val handshake = listOf(Session("sess-1"), Get("camera"), Get("settings"), Get("battery"), Get("program"))
-
-        session.state.value = ConnectionState.Connecting
-        assertEquals(emptyList(), session.sent)
-
-        session.state.value = connected
-        assertEquals(handshake, session.sent)
-
-        session.state.value = ConnectionState.Connecting
-        session.state.value = connected
-        assertEquals(handshake + handshake, session.sent)
     }
 
     @Test

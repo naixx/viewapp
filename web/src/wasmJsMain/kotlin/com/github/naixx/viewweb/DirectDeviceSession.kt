@@ -36,8 +36,7 @@ class DirectDeviceSession(private val client: WebSocketClient) : DeviceSession {
     override fun connect() {
         if (connectionJob?.isActive == true) return
         connectionJob = scope.launch {
-            // The handshake after a connect is DeviceState's.
-            client.startWebSocket(listOf(window.location.origin + "/"), emptyList(), { _, _ -> }) { message ->
+            client.startWebSocket(listOf(window.location.origin + "/"), emptyList()) { message ->
                 if (!messages.tryEmit(message)) LL.w("message dropped: ${message.type}")
             }
         }

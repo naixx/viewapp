@@ -65,7 +65,7 @@ class DownloadFlowTest {
         context = ApplicationProvider.getApplicationContext()
         clearTimelapseCache()
         frameStore = FileSystemFrameStore(Path(context.filesDir.path), dispatcher)
-        deviceState = DeviceState(idleSession, mockk(relaxed = true), frameStore, CoroutineScope(dispatcher))
+        deviceState = DeviceState(idleSession, frameStore, CoroutineScope(dispatcher))
     }
 
     @After

@@ -41,7 +41,7 @@ object WebBindings {
 fun main() {
     Napier.base(DebugAntilog())
     val graph = createGraph<WebGraph>()
-    graph.deviceState // created before connect(), so the handshake after the first connect is observed
+    graph.deviceState
     graph.deviceSession.connect()
     val page = object : ViewModelStoreOwner { override val viewModelStore = ViewModelStore() }
 
