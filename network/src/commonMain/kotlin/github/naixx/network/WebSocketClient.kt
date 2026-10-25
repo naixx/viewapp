@@ -54,7 +54,7 @@ class WebSocketClient(
     val messages: SharedFlow<BaseMessage>
         field = MutableSharedFlow<BaseMessage>(extraBufferCapacity = 256, onBufferOverflow = BufferOverflow.DROP_OLDEST)
 
-    suspend fun startWebSocket(priorityUrls: List<String>, scanUrls: List<String>) {
+    suspend fun startWebSocket(priorityUrls: () -> List<String>, scanUrls: () -> List<String>) {
         try {
             reconnect(priorityUrls, scanUrls)
         } catch (e: CancellationException) {
@@ -63,14 +63,14 @@ class WebSocketClient(
         }
     }
 
-    private suspend fun reconnect(priorityUrls: List<String>, scanUrls: List<String>) {
+    private suspend fun reconnect(priorityUrls: () -> List<String>, scanUrls: () -> List<String>) {
         var useLocalConnection = true
 
         while (true) {
             try {
                 connectionState.value = ConnectionState.Connecting
                 // Get the connection URL based on current preference
-                val foundServer = findServer(useLocalConnection, priorityUrls, scanUrls)
+                val foundServer = findServer(useLocalConnection, priorityUrls(), scanUrls())
 
                 if (foundServer == null) {
 //                    TODO useLocalConnection = !useLocalConnection

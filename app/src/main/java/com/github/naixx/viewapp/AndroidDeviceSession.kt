@@ -65,10 +65,8 @@ class AndroidDeviceSession(
         scope.launch { client.send(message) }
     }
 
-    suspend fun keepConnected() {
-        val priorityUrls = listOf(MDNS_URL) + Prefs.lastConnectedIp
-        val scanUrls = generateLocalServer(context) + WIFI_URL
-        LL.i("connecting; known: ${priorityUrls.joinToString()}, scanning ${scanUrls.size} hosts")
-        client.startWebSocket(priorityUrls, scanUrls)
-    }
+    suspend fun keepConnected() = client.startWebSocket(
+        priorityUrls = { listOf(MDNS_URL) + Prefs.lastConnectedIp },
+        scanUrls = { (generateLocalServer(context) + WIFI_URL).also { LL.i("scanning ${it.size} hosts, Wi-Fi ${currentWifiSubnetLabel(context)}") } },
+    )
 }

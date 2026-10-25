@@ -127,7 +127,7 @@ class KtorTest {
         val collector = webSocketClient.messages.onEach { messageReceived.complete(it) }.launchIn(this)
 
         val webSocketJob = launch(Dispatchers.Default.limitedParallelism(1)) {
-            webSocketClient.startWebSocket(listOf(WIFI_URL, ACCESS_POINT_URL), emptyList())
+            webSocketClient.startWebSocket({ listOf(WIFI_URL, ACCESS_POINT_URL) }, { emptyList() })
         }
 
         withContext(Dispatchers.Default.limitedParallelism(1)) {

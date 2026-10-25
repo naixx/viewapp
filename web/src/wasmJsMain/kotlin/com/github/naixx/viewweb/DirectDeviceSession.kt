@@ -34,7 +34,7 @@ class DirectDeviceSession(private val client: WebSocketClient) : DeviceSession {
     override fun connect() {
         if (connectionJob?.isActive == true) return
         connectionJob = scope.launch {
-            client.startWebSocket(listOf(window.location.origin + "/"), emptyList())
+            client.startWebSocket({ listOf(window.location.origin + "/") }, { emptyList() })
         }
     }
 
