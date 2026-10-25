@@ -66,7 +66,7 @@ class AndroidDeviceSession(
     }
 
     suspend fun keepConnected() {
-        val priorityUrls = Prefs.lastConnectedIp.toList()
+        val priorityUrls = listOf(MDNS_URL) + Prefs.lastConnectedIp
         val scanUrls = generateLocalServer(context) + WIFI_URL
         LL.i("connecting; known: ${priorityUrls.joinToString()}, scanning ${scanUrls.size} hosts")
         client.startWebSocket(priorityUrls, scanUrls)

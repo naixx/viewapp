@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.serialization.json.Json
 
 const val ACCESS_POINT_URL = "http://10.0.0.1/"
+const val MDNS_URL = "http://view.local/"
 const val REMOTE_URL = "https://app.view.tl/"
 val WIFI_URL = "http://192.168.31.21/"
 private const val RECONNECT_DELAY_MS = 3000L
