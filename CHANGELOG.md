@@ -3,6 +3,41 @@
 All notable changes to ViewApp are documented here. This project loosely follows
 [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [2.3] — 2026-10-26
+
+Layouts for tablets and wide windows, a connection that follows the phone to another network, and the
+same screens in a browser, served by the VIEW itself.
+
+> Works with VIEW firmware **1.8.54+**; get **1.8.58** ([`naixx/VIEW`](https://github.com/naixx/VIEW/releases/latest))
+> for the `view.local` name and ViewApp in a browser at `http://view.local/`.
+
+### Added
+
+- **Layouts for tablets, foldables and landscape.** From 600 dp wide the tabs move to a rail at the side.
+  From 840 dp the Clips tab shows the clip grid and the open clip side by side, and the Status screen puts
+  the picture (the running time-lapse, or the camera controls when idle) beside the program and the status.
+  The clip list becomes a grid of two or more columns from 480 dp.
+- **`view.local`**: the app tries `http://view.local/` first, next to the last known addresses (VIEW firmware
+  1.8.58 answers this name); the subnet scan still runs beside it.
+- **ViewApp in a browser.** The Status and Clips screens are also built for the browser and served by the VIEW
+  (firmware 1.8.58) at `http://view.local/`, for an iPhone, a computer, or anyone without the app. The browser
+  has no MP4 export and no background connection: the page catches up when it is opened again.
+
+### Changed
+
+- **Android 9 or newer** is required (was Android 7).
+
+### Fixed
+
+- **Long time-lapses on Android 15+**: the connection service is now a "connected device" foreground service.
+  Android 15 lets the previous type (data sync) run only 6 hours a day in the background and then crashes an app
+  whose service keeps running, so a night time-lapse could lose its connection and its saved thumbnails partway.
+- **After the phone moves to another network** the next reconnect attempt scans that network; the app kept
+  scanning the old one until Disconnect and Connect.
+- **Clip list**: an older clip that the VIEW lists without a database id no longer stops the whole list from
+  refreshing.
+- The notification menu closes when you tap a notification or Clear all.
+
 ## [2.2] — 2026-10-22
 
 Keeps the ramping limits working with VIEW firmware 1.8.56.
