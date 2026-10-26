@@ -60,6 +60,7 @@ android {
             "META-INF/LICENSE.md",
             "META-INF/LICENSE-notice.md",
         )
+        dex.useLegacyPackaging = true
     }
     testOptions {
         unitTests {
